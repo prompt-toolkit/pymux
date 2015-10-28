@@ -1,0 +1,172 @@
+from __future__ import unicode_literals
+
+from prompt_toolkit.terminal.vt100_input import raw_mode, cooked_mode
+from prompt_toolkit.eventloop.posix import _select, call_on_sigwinch
+from prompt_toolkit.eventloop.base import INPUT_TIMEOUT
+from prompt_toolkit.terminal.vt100_output import _get_size, Vt100_Output
+
+from pymux.utils import nonblocking
+
+import getpass
+import glob
+import json
+import os
+import signal
+import socket
+import sys
+
+
+__all__ = (
+    'Client',
+    'list_clients',
+)
+
+
+class Client(object):
+    def __init__(self, socket_name):
+        self.socket_name = socket_name
+        self._mode_context_managers = []
+
+        # Connect to socket.
+        self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.socket.connect(socket_name)
+        self.socket.setblocking(0)
+
+    def run_command(self, command, pane_id=None):
+        """
+        Ask the server to run this command.
+
+        :param pane_id: Optional identifier of the current pane.
+        """
+        self._send_packet({
+            'cmd': 'run-command',
+            'data': command,
+            'pane_id': pane_id
+        })
+
+    def attach(self, detach_other_clients=False, true_color=False):
+        """
+        Attach client user interface.
+        """
+        assert isinstance(detach_other_clients, bool)
+        assert isinstance(true_color, bool)
+
+        self._send_size()
+        self._send_packet({
+            'cmd': 'start-gui',
+            'detach-others': detach_other_clients,
+            'true-color': true_color,
+            'data': ''
+        })
+
+        with raw_mode(sys.stdin.fileno()):
+            data_buffer = b''
+
+            stdin_fd = sys.stdin.fileno()
+            socket_fd = self.socket.fileno()
+            current_timeout = INPUT_TIMEOUT  # Timeout, used to flush escape sequences.
+
+            with call_on_sigwinch(self._send_size):
+                while True:
+                    r, w, x = _select([stdin_fd, socket_fd], [], [], current_timeout)
+
+                    if socket_fd in r:
+                        # Received packet from server.
+                        data = self.socket.recv(1024)
+
+                        if data == b'':
+                            # End of file. Connection closed.
+                            # Reset terminal
+                            o = Vt100_Output.from_pty(sys.stdout)
+                            o.quit_alternate_screen()
+                            o.disable_mouse_support()
+                            o.reset_attributes()
+                            o.flush()
+                            return
+                        else:
+                            data_buffer += data
+
+                            while b'\0' in data_buffer:
+                                pos = data_buffer.index(b'\0')
+                                self._process(data_buffer[:pos])
+                                data_buffer = data_buffer[pos + 1:]
+
+                    elif stdin_fd in r:
+                        # Got user input.
+                        self._process_stdin()
+                        current_timeout = INPUT_TIMEOUT
+
+                    else:
+                        # Timeout. (Tell the server to flush the vt100 Escape.)
+                        self._send_packet({'cmd': 'flush-input'})
+                        current_timeout = None
+
+    def _process(self, data_buffer):
+        """
+        Handle incoming packet from server.
+        """
+        packet = json.loads(data_buffer.decode('utf-8'))
+
+        if packet['cmd'] == 'out':
+            # Call os.write manually. In Python2.6, sys.stdout.write doesn't use UTF-8.
+            os.write(sys.stdout.fileno(), packet['data'].encode('utf-8'))
+
+        elif packet['cmd'] == 'suspend':
+            # Suspend client process to background.
+            if hasattr(signal, 'SIGTSTP'):
+                os.kill(os.getpid(), signal.SIGTSTP)
+
+        elif packet['cmd'] == 'mode':
+            # Set terminal to raw/cooked.
+            action = packet['data']
+
+            if action == 'raw':
+                cm = raw_mode(sys.stdin.fileno())
+                cm.__enter__()
+                self._mode_context_managers.append(cm)
+
+            elif action == 'cooked':
+                cm = cooked_mode(sys.stdin.fileno())
+                cm.__enter__()
+                self._mode_context_managers.append(cm)
+
+            elif action == 'restore' and self._mode_context_managers:
+                cm = self._mode_context_managers.pop()
+                cm.__exit__()
+
+    def _process_stdin(self):
+        """
+        Received data on stdin. Read and send to server.
+        """
+        with nonblocking(sys.stdin.fileno()):
+            data = sys.stdin.read()
+
+        self._send_packet({
+            'cmd': 'in',
+            'data': data,
+        })
+
+    def _send_packet(self, data):
+        " Send to server. "
+        data = json.dumps(data).encode('utf-8')
+
+        self.socket.send(data + b'\0')
+
+    def _send_size(self):
+        " Report terminal size to server. "
+        rows, cols = _get_size(sys.stdout.fileno())
+        self._send_packet({
+            'cmd': 'size',
+            'data': [rows, cols]
+        })
+
+
+def list_clients():
+    """
+    List all the servers that are running.
+    """
+    for path in glob.glob('/tmp/pymux.sock.%s.*' % getpass.getuser()):
+        try:
+            yield Client(path)
+        except socket.error:
+            pass
