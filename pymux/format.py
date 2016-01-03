@@ -4,6 +4,7 @@ Pymux string formatting.
 from __future__ import unicode_literals
 import datetime
 import socket
+import six
 
 __all__ = (
     'format_pymux_string',
@@ -81,7 +82,11 @@ def format_pymux_string(pymux, cli, string, window=None, pane=None):
 
     # Date/time formatting.
     try:
-        string = datetime.datetime.now().strftime(string)
+        if six.PY2:
+            string = datetime.datetime.now().strftime(
+                string.encode('utf-8')).decode('utf-8')
+        else:
+            string = datetime.datetime.now().strftime(string)
     except ValueError:  # strftime format ends with raw %
         string = '<ValueError>'
 
