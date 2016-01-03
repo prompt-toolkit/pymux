@@ -22,9 +22,9 @@ setup(
     packages=find_packages('.'),
     install_requires = [
         'prompt_toolkit==0.56',
-        'pyte',
+        'pyte>=0.4.10',
         'six>=1.9.0',
-        'docopt',
+        'docopt>=0.6.2',
     ],
     entry_points={
         'console_scripts': [

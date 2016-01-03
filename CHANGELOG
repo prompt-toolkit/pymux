@@ -1,0 +1,16 @@
+CHANGELOG
+=========
+
+
+0.2: 2016-01-03
+----------------
+
+First published version of Pymux, using prompt_toolkit.
+
+
+0.1: 2014-02-19
+---------------
+
+Initial experimental version of Pymux, written using asyncio. (This one is
+discontinued in favour of the new version, that uses prompt_toolkit.)
+still available here: https://github.com/jonathanslenders/old-pymux
