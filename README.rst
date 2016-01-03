@@ -41,7 +41,7 @@ on all Python versions from 2.6 until 3.5. It should work on OS X and Linux.
 Compared to tmux
 ----------------
 
-To some extend, pymux is a clone of tmux. This means that all the default
+To some extent, pymux is a clone of tmux. This means that all the default
 shortcuts are the same; the commands are the same or very similar, and even a
 simple configuration file could be the same. (There are some small
 incompatibilities.) However, we definitely don't intend to create a fully
