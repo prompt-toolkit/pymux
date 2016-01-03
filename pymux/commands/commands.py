@@ -60,8 +60,9 @@ def handle_command(pymux, cli, input_string):
 
     if input_string and not input_string.startswith('#'):  # Ignore comments.
         try:
-            if sys.version.startswith('2.6.'):
-                # In Python2.6, shlex doesn't work with unicode input.
+            if six.PY2:
+                # In Python2.6, shlex doesn't work with unicode input at all.
+                # In Python2.7, shlex tries to encode using ASCII.
                 parts = shlex.split(input_string.encode('utf-8'))
                 parts = [p.decode('utf-8') for p in parts]
             else:
@@ -122,14 +123,14 @@ def cmd(name, options=''):
 
             # Parse options.
             try:
-                # Python 2.6 workaround: pass bytes to docopt.
+                # Python 2 workaround: pass bytes to docopt.
                 # From the following, only the bytes version returns the right
-                # output in Python 2.6:
+                # output in Python 2:
                 #   docopt.docopt('Usage:\n  app <params>...', [b'a', b'b'])
                 #   docopt.docopt('Usage:\n  app <params>...', [u'a', u'b'])
                 # https://github.com/docopt/docopt/issues/30
                 # (Not sure how reliable this is...)
-                if sys.version.startswith('2.6.'):
+                if six.PY2:
                     arguments = [a.encode('utf-8') for a in arguments]
 
                 received_options = docopt.docopt(
