@@ -1,6 +1,15 @@
 CHANGELOG
 =========
 
+0.3: 2016-01-03
+----------------
+
+New features:
+- Take $SHELL into account.
+
+Fixes:
+- Python 2 encoding bug fixed.
+
 
 0.2: 2016-01-03
 ----------------
