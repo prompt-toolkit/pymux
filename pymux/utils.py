@@ -165,6 +165,9 @@ def get_default_shell():
     """
     return the path to the default shell for the current user.
     """
-    username = getpass.getuser()
-    shell = pwd.getpwnam(username).pw_shell
-    return shell
+    if 'SHELL' in os.environ:
+        return os.environ['SHELL']
+    else:
+        username = getpass.getuser()
+        shell = pwd.getpwnam(username).pw_shell
+        return shell
