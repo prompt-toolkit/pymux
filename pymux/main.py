@@ -33,6 +33,7 @@ import os
 import signal
 import six
 import sys
+import tempfile
 import traceback
 import weakref
 
@@ -491,8 +492,11 @@ class Pymux(object):
             # When something bad happens, always dump the traceback.
             # (Otherwise, when running as a daemon, and stdout/stderr are not
             # available, it's hard to see what went wrong.)
-            with open('/tmp/pymux.crash', 'wb') as f:
-                f.write(traceback.format_exc().encode('utf-8'))
+            fd, path = tempfile.mkstemp(prefix='pymux.crash-')
+            logger.fatal(
+                'Pymux has crashed, dumping traceback to {0}'.format(path))
+            os.write(fd, traceback.format_exc().encode('utf-8'))
+            os.close(fd)
             raise
 
         # Clean up socket.
@@ -578,7 +582,7 @@ class _BufferMapping(BufferMapping):
 
     def current_name(self, cli):
         """
-        Name of te current buffer.
+        Name of the current buffer.
         """
         client_state = self.pymux.get_client_state(cli)
 
