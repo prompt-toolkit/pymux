@@ -165,9 +165,9 @@ in the examples directory.
 What if it crashes?
 -------------------
 
-If for some reason pymux crashes, it will attempt to write a stack trace to
-``/tmp/pymux.crash``. It is possible that the user interface freezes. Please
-create a GitHub issue with this stack trace.
+If for some reason pymux crashes, it will attempt to write a stack trace to a
+file with a name like ``/tmp/pymux.crash-*``. It is possible that the user
+interface freezes. Please create a GitHub issue with this stack trace.
 
 
 Special thanks
