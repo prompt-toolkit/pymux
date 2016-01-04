@@ -4,6 +4,8 @@ Improvements on Pyte.
 from __future__ import unicode_literals
 from pyte.streams import Stream
 from pyte.escape import NEL
+from pyte import ctrl
+from collections import defaultdict
 
 __all__ = (
     'BetterStream',
@@ -31,47 +33,112 @@ class BetterStream(Stream):
 
     def __init__(self, screen):
         super(BetterStream, self).__init__()
-
-        self.handlers['square_close'] = self._square_close
-        self.handlers['escape'] = self._escape
-        self._square_close_data = []
         self.listener = screen
 
-    def _escape(self, char):
-        if char == ']':
-            self.state = 'square_close'
-        else:
-            super(BetterStream, self)._escape(char)
+        # Start parser.
+        self._parser = self._parser_generator()
+        self._parser.send(None)
 
-    def _square_close(self, char):
-        " Parse ``Esc]<num>...BEL``sequence. "
-        if char == '\07':
-            self.dispatch('square_close', ''.join(self._square_close_data))
-            self._square_close_data = []
-            self.state = "stream"
-        else:
-            self._square_close_data.append(char)
-
-    def _arguments(self, char):
-        if char == '>':
-            # Correctly handle 'Esc[>c' (send device attributes.)
-            pass
-        else:
-            super(BetterStream, self)._arguments(char)
-
-    def dispatch(self, event, *args, **kwargs):
+    def feed(self, chars):  # TODO: Handle exceptions.
         """
-        A few additions to improve performance.
-
-        The code from Pyte has a few 'hasattr' calls in here, which is
-        inefficient.
+        Custom, much more efficient 'feed' function.
         """
-        try:
-            handler = getattr(self.listener, event)
-            handler(*args, **self.flags)
-        finally:
-            # __after__ is used to set the correct screen height.
-            self.listener.__after__(self)
+        # Send all input to the parser coroutine.
+        send = self._parser.send
 
-            if kwargs.get('reset', True):
-                self.reset()
+        for c in chars:
+            send(c)
+
+        # Call the '__after__' function, which is used to update the screen
+        # height.
+        self.listener.__after__(self)
+
+    def _parser_generator(self):
+        """
+        Coroutine that processes VT100 output.
+
+        It's actually a state machine, implemented as a coroutine. So all the
+        'state' that we have is stored in local variables.
+        """
+        listener = self.listener
+        draw = listener.draw
+
+        # In order to avoid getting KeyError exceptions below, we make sure that
+        # these dictionaries resolve to 'Screen.dummy'
+        basic = defaultdict(lambda: 'dummy', self.basic)
+        escape = defaultdict(lambda: 'dummy', self.escape)
+        sharp = defaultdict(lambda: 'dummy', self.sharp)
+        percent = defaultdict(lambda: 'dummy', self.percent)
+        csi = defaultdict(lambda: 'dummy', self.csi)
+
+        ESC = ctrl.ESC
+        CSI = ctrl.CSI
+        NUL_OR_DEL = (ctrl.NUL, ctrl.DEL)
+        CTRL_SEQUENCES_ALLOWED_IN_CSI = (
+            ctrl.BEL, ctrl.BS, ctrl.HT, ctrl.LF, ctrl.VT, ctrl.FF, ctrl.CR)
+
+        def dispatch(event, *args, **flags):
+            getattr(listener, event)(*args, **flags)
+
+        while True:
+            char = yield
+
+            if char == ESC:  # \x1b
+                char = yield
+
+                if char == '[':
+                    char = CSI  # Go to CSI.
+                else:
+                    if char == '#':
+                        dispatch(sharp[(yield)])
+                    elif char == '%':
+                        dispatch(percent[(yield)])
+                    elif char in '()':
+                        listener.set_charset((yield), mode=char)
+                    elif char == ']':
+                        data = []
+                        while True:
+                            c = yield
+                            if c == '\07':
+                                break
+                            else:
+                                data.append(c)
+                        listener.square_close(''.join(data))
+                    else:
+                        dispatch(escape[char])
+                    continue  # Do not go to CSI.
+
+            if char in basic:  # 'if', not 'elif', because we need to be
+                               # able to jump here from Esc[ above in the CSI
+                               # section below.
+                dispatch(basic[char])
+
+            elif char == CSI:  # \x9b
+                current = ''
+                params = []
+                private = False
+
+                while True:
+                    char = yield
+                    if char == '?':
+                        private = True
+                    elif char in CTRL_SEQUENCES_ALLOWED_IN_CSI:
+                        dispatch(basic[char])
+                    elif char == ctrl.SP:
+                        pass
+                    elif char.isdigit():
+                        current += char
+                    else:
+                        params.append(min(int(current or 0), 9999))
+
+                        if char == ';':
+                            current = ''
+                        else:
+                            if private:
+                                dispatch(csi[char], *params, private=True)
+                            else:
+                                dispatch(csi[char], *params)
+                            break  # Break outside CSI loop.
+
+            elif char not in NUL_OR_DEL:
+                draw(char)

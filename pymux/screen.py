@@ -14,7 +14,6 @@ from pygments.formatters.terminal256 import Terminal256Formatter
 from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
-from wcwidth import wcwidth
 
 from prompt_toolkit.layout.screen import Screen, Char
 from prompt_toolkit.styles import Attrs
@@ -96,8 +95,10 @@ class BetterScreen(object):
         self.reset()
 
     def __after__(self, ev):
-        self.pt_screen.height = max(
-            self.pt_screen.height, self.pt_screen.cursor_position.y + 2)
+        pt_screen = self.pt_screen
+
+        pt_screen.height = max(
+            pt_screen.height, pt_screen.cursor_position.y + 2)
 
     @property
     def in_application_mode(self):
@@ -355,6 +356,7 @@ class BetterScreen(object):
 
     def draw(self, char):
         pt_screen = self.pt_screen
+        cursor_position = pt_screen.cursor_position
 
         # Translating a given character.
         if self.charset:
@@ -370,12 +372,12 @@ class BetterScreen(object):
         # enabled, move the cursor to the beginning of the next line,
         # otherwise replace characters already displayed with newly
         # entered.
-        if pt_screen.cursor_position.x >= self.columns:
+        if cursor_position.x >= self.columns:
             if mo.DECAWM in self.mode:
                 self.carriage_return()
                 self.linefeed()
             else:
-                pt_screen.cursor_position.x -= char_width
+                cursor_position.x -= char_width
 
         # If Insert mode is set, new characters move old characters to
         # the right, otherwise terminal is in Replace mode and new
@@ -384,17 +386,17 @@ class BetterScreen(object):
             self.insert_characters(char_width)
 
         token = ('C', ) + self._attrs
-        row = pt_screen.data_buffer[pt_screen.cursor_position.y]
-        row[pt_screen.cursor_position.x] = Char(char, token)
+        row = pt_screen.data_buffer[cursor_position.y]
+        row[cursor_position.x] = Char(char, token)
 
         if char_width > 1:
-            row[pt_screen.cursor_position.x + 1] = Char(' ', token)
+            row[cursor_position.x + 1] = Char(' ', token)
 
         # .. note:: We can't use :meth:`cursor_forward()`, because that
         #           way, we'll never know when to linefeed.
-        pt_screen.cursor_position.x += char_width
+        cursor_position.x += char_width
 
-        self.max_y = max(self.max_y, pt_screen.cursor_position.y)
+        self.max_y = max(self.max_y, cursor_position.y)
 
     def carriage_return(self):
         " Move the cursor to the beginning of the current line. "
@@ -936,4 +938,7 @@ class BetterScreen(object):
         self.write_process_input(response)
 
     def debug(self, *args, **kwargs):
+        pass
+
+    def dummy(self, *a, **kw):
         pass
