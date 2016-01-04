@@ -8,7 +8,7 @@ Changes compared to the original `Screen` class:
     - CPR support and device attributes.
 """
 from __future__ import unicode_literals
-from collections import defaultdict
+from collections import defaultdict, deque
 
 from pygments.formatters.terminal256 import Terminal256Formatter
 from pyte import charsets as cs
@@ -18,7 +18,6 @@ from pyte.screens import Margins
 from prompt_toolkit.layout.screen import Screen, Char
 from prompt_toolkit.styles import Attrs
 from prompt_toolkit.terminal.vt100_output import FG_ANSI_COLORS, BG_ANSI_COLORS
-from prompt_toolkit.utils import get_cwidth
 from collections import namedtuple
 
 import copy
@@ -40,6 +39,36 @@ class CursorPosition(object):
 
     def __repr__(self):
         return 'pymux.CursorPosition(x=%r, y=%r)' % (self.x, self.y)
+
+
+class Cache(dict):
+    """
+    Cache which keeps at most `size` items.
+    It will discard the oldest items in the cache first.
+
+    :param get_value: Callable that's called in case of a missing key.
+    """
+    def __init__(self, get_value, size=1000000):
+        assert callable(get_value)
+        assert isinstance(size, int)
+
+        self._keys = deque()
+        self.get_value = get_value
+        self.size = size
+
+    def __missing__(self, key):
+        # Remove old keys when the size is exceeded.
+        if len(self) > self.size:
+            key_to_remove = self._keys.popleft()
+            if key_to_remove in self:
+                del self[key_to_remove]
+
+        result = self.get_value(*key)
+        self[key] = result
+        return result
+
+
+_CHAR_CACHE = Cache(Char, size=1000 * 1000)
 
 
 # Custom Savepoint that also stores the Attrs.
@@ -85,6 +114,8 @@ class BetterScreen(object):
 
         bell_func = bell_func or (lambda: None)
         get_history_limit = get_history_limit or (lambda: 2000)
+
+        self._history_cleanup_counter = 0
 
         self.savepoints = []
         self.lines = lines
@@ -364,9 +395,10 @@ class BetterScreen(object):
         else:
             char = char.translate(self.g0_charset)
 
-        # Calculate character width. (We use the prompt_toolkit function which
-        # has built-in caching.)
-        char_width = get_cwidth(char)
+        # Create 'Char' instance.
+        token = ('C', ) + self._attrs  # XXX: cache this one.
+        pt_char = _CHAR_CACHE[char, token]
+        char_width = pt_char.width
 
         # If this was the last column in a line and auto wrap mode is
         # enabled, move the cursor to the beginning of the next line,
@@ -385,12 +417,11 @@ class BetterScreen(object):
         if mo.IRM in self.mode:
             self.insert_characters(char_width)
 
-        token = ('C', ) + self._attrs
         row = pt_screen.data_buffer[cursor_position.y]
-        row[cursor_position.x] = Char(char, token)
+        row[cursor_position.x] = pt_char
 
         if char_width > 1:
-            row[cursor_position.x + 1] = Char(' ', token)
+            row[cursor_position.x + 1] = _CHAR_CACHE[' ', token]
 
         # .. note:: We can't use :meth:`cursor_forward()`, because that
         #           way, we'll never know when to linefeed.
@@ -422,7 +453,11 @@ class BetterScreen(object):
             else:
                 self.cursor_down()
 
-        self._remove_old_lines_from_history()
+        # Cleanup the history, but only every 100 calls.
+        self._history_cleanup_counter += 1
+        if self._history_cleanup_counter == 100:
+            self._remove_old_lines_from_history()
+            self._history_cleanup_counter = 0
 
     def _remove_old_lines_from_history(self):
         """
@@ -692,10 +727,6 @@ class BetterScreen(object):
         """
         self.pt_screen.cursor_position.x += count or 1
         self.ensure_bounds()
-
-    def _set_char(self, x, y, data):
-        token = ('C', ) + self._attrs
-        self.pt_screen.data_buffer[y + self.line_offset][x] = Char(data, token)
 
     def erase_characters(self, count=None):
         """Erases the indicated # of characters, starting with the
