@@ -291,9 +291,12 @@ class Window(object):
         assert isinstance(pane, Pane)
 
         if pane in self.panes:
-            # When this pane was focused. Focus next.
+            # When this pane was focused, switch to previous active or next in order.
             if pane == self.active_pane:
-                self.focus_next()
+                if self.previous_active_pane:
+                    self.active_pane = self.previous_active_pane
+                else:
+                    self.focus_next()
 
             # Remove from the parent. When the parent becomes empty, remove the
             # parent itself recursively.
