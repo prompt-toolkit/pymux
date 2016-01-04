@@ -98,18 +98,21 @@ When a pane enters copy mode, search results are highlighted:
 Why create a tmux clone?
 ------------------------
 
+For several reasons. Having a terminal multiplexer in Python makes it easy to
+experiment and implement new features. While C is a good language, it's not as
+easy to develop as Python.
+
 Just like `pyvim <https://github.com/jonathanslenders/pyvim>`_ (A ``Vi`` clone
-in Python.), this is another experiment. A hobby project to challenge the
-design of prompt_toolkit. The development resulted in many improvements in
-prompt_toolkit, especially performance improvements, but also some
-functionality improvements.
+in Python.), it started as another experiment. A project to challenge the
+design of prompt_toolkit. At this point, however, pymux should be stable and
+usable for daily work.
 
-The development is especially interesting, because it touches so many different
-areas that are unknown to most Python developers. It also proves that Python is
-a good tool to create terminal applications.
+The development resulted in many improvements in prompt_toolkit, especially
+performance improvements, but also some functionality improvements.
 
-Further, experimenting and hacking with pymux will be easier than tmux, as
-Python is more accessible.
+Further, the development is especially interesting, because it touches so many
+different areas that are unknown to most Python developers. It also proves that
+Python is a good tool to create terminal applications.
 
 
 The roadmap
