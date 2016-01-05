@@ -576,10 +576,16 @@ class BetterScreen(object):
         if top <= self.pt_screen.cursor_position.y - self.line_offset <= bottom:
             for line in range(bottom, self.pt_screen.cursor_position.y - self.line_offset, -1):
                 if line - count < top:
-                    del self.data_buffer[line + self.line_offset]
+                    try:
+                        del self.data_buffer[line + self.line_offset]
+                    except KeyError:
+                        pass
                 else:
                     self.data_buffer[line + self.line_offset] = self.data_buffer[line + self.line_offset - count]
-                    del self.data_buffer[line + self.line_offset - count]
+                    try:
+                        del self.data_buffer[line + self.line_offset - count]
+                    except KeyError:
+                        pass
 
             self.carriage_return()
 
