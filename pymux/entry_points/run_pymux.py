@@ -76,7 +76,7 @@ def run():
     if a['standalone']:
         mux.run_standalone(true_color=true_color)
 
-    elif a['list-sessions'] or a['<command>'] == 'list-sessions':
+    elif a['list-sessions'] or a['<command>'] in ('ls', 'list-sessions'):
         for c in list_clients():
             print(c.socket_name)
 
