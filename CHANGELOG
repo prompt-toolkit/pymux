@@ -1,6 +1,20 @@
 CHANGELOG
 =========
 
+0.4: 2016-01-04
+----------------
+
+Fixes:
+- After closing a pane, go to the previous pane.
+- Write crash reports to a secure temp file.
+- Added 'ls' as alias for list-sessions.
+
+Better performance:
+- Using a coroutine for the vt100 parser. (Much faster.)
+- Give priority to panes that have the focus.
+- Never postpone the rendering in case of high CPU. (Fix in prompt_toolkit.)
+
+
 0.3: 2016-01-03
 ----------------
 
