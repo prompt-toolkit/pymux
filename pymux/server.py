@@ -20,6 +20,10 @@ class ServerConnection(object):
     For each client that connects, we have one instance of this class.
     """
     def __init__(self, pymux, connection, client_address):
+        """(ServerConnection, type(pymux), type(connection),
+        str) -> NoneType
+        *Description*
+        """
         self.pymux = pymux
         self.connection = connection
         self.client_address = client_address

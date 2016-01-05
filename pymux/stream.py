@@ -32,6 +32,9 @@ class BetterStream(Stream):
     })
 
     def __init__(self, screen):
+        """(PymuxStyle, type(screen)) -> NoneType
+        *Description*
+        """
         super(BetterStream, self).__init__()
         self.listener = screen
 
@@ -40,7 +43,7 @@ class BetterStream(Stream):
         self._parser.send(None)
 
     def feed(self, chars):  # TODO: Handle exceptions.
-        """
+        """(BetterStream, char) -> NoneType
         Custom, much more efficient 'feed' function.
         """
         # Send all input to the parser coroutine.
@@ -54,7 +57,7 @@ class BetterStream(Stream):
         self.listener.__after__(self)
 
     def _parser_generator(self):
-        """
+        """(BetterStream) -> NoneType
         Coroutine that processes VT100 output.
 
         It's actually a state machine, implemented as a coroutine. So all the

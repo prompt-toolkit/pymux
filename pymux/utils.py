@@ -20,7 +20,7 @@ __all__ = (
 
 
 def pty_make_controlling_tty(tty_fd):
-    """
+    """ (type(tty_fd)) -> NoneType
     This makes the pseudo-terminal the controlling tty. This should be
     more portable than the pty.fork() function. Specifically, this should
     work on Solaris.
@@ -71,7 +71,7 @@ def pty_make_controlling_tty(tty_fd):
 
 
 def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
-    """
+    """(str, str, str) -> int
     Double fork-trick. For starting a posix daemon.
 
     This forks the current process into a daemon. The stdin, stdout, and stderr
@@ -128,7 +128,7 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
 
 
 def set_terminal_size(stdout_fileno, rows, cols):
-    """
+    """(type(stdout_fileno), type(rows), type(cols)) -> NoneType
     Set terminal size.
 
     (This is also mainly for internal use. Setting the terminal size
@@ -151,13 +151,22 @@ class nonblocking(object):
     Make fd non blocking.
     """
     def __init__(self, fd):
+        """(nonblocking, type(fd)) -> NoneType
+        Creates a nonblocking Object
+        """
         self.fd = fd
 
     def __enter__(self):
+        """(nonblocking) -> NoneType
+        *Description*
+        """
         self.orig_fl = fcntl.fcntl(self.fd, fcntl.F_GETFL)
         fcntl.fcntl(self.fd, fcntl.F_SETFL, self.orig_fl | os.O_NONBLOCK)
 
     def __exit__(self, *args):
+        """(nonblocking, type(*args)) -> NoneType
+        *Description*
+        """
         fcntl.fcntl(self.fd, fcntl.F_SETFL, self.orig_fl)
 
 

@@ -73,10 +73,16 @@ class PymuxStyle(Style):
     starting with ('C,) as tokens that describe their own style.
     """
     def __init__(self):
+        """(PymuxStyle) -> NoneType
+        *Description*
+        """
         self.pygments_style = PygmentsStyle.from_defaults(style_dict=ui_style)
         self._token_to_attrs_dict = None
 
     def get_attrs_for_token(self, token):
+        """(PymuxStyle, type(token)) -> Attributes
+        *Desciption*
+        """
         if token and token[0] == 'C':
             # Token starts with ('C',). Token describes its own style.
             c, fg, bg, bold, underline, italic, blink, reverse = token
@@ -86,4 +92,7 @@ class PymuxStyle(Style):
             return self.pygments_style.get_attrs_for_token(token)
 
     def invalidation_hash(self):
+        """(PymuxStyle) -> NoneType
+        Returns nothing because the hash was invalidated.
+        """
         return None

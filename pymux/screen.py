@@ -34,10 +34,14 @@ DEFAULT_TOKEN = ('C', ) + Attrs(color=None, bgcolor=None, bold=False, underline=
 class CursorPosition(object):
     " Mutable CursorPosition. "
     def __init__(self, x=0, y=0):
+        """(CursorPosition, int, int) -> NoneType
+        """
         self.x = x
         self.y = y
 
     def __repr__(self):
+        """(CursorPosition) -> str
+        """
         return 'pymux.CursorPosition(x=%r, y=%r)' % (self.x, self.y)
 
 
@@ -49,6 +53,9 @@ class Cache(dict):
     :param get_value: Callable that's called in case of a missing key.
     """
     def __init__(self, get_value, size=1000000):
+        """(Cache, int, int) -> NoneType
+        *Description*
+        """
         assert callable(get_value)
         assert isinstance(size, int)
 
@@ -57,6 +64,9 @@ class Cache(dict):
         self.size = size
 
     def __missing__(self, key):
+        """(Cache, type(key)) -> type(result)
+        *Description*
+        """
         # Remove old keys when the size is exceeded.
         if len(self) > self.size:
             key_to_remove = self._keys.popleft()
@@ -106,6 +116,10 @@ class BetterScreen(object):
 
     def __init__(self, lines, columns, write_process_input, bell_func=None,
                  get_history_limit=None):
+        """(BetterScreen, type(lines), type(columns), type(write_process_input)
+        , NoneType, NoneType) -> NoneType
+        *Description*
+        """
         assert isinstance(lines, int)
         assert isinstance(columns, int)
         assert callable(write_process_input)
@@ -126,6 +140,9 @@ class BetterScreen(object):
         self.reset()
 
     def __after__(self, ev):
+        """(BetterScreen, type(ev)) -> NoneType
+        *Description*
+        """
         pt_screen = self.pt_screen
 
         pt_screen.height = max(
@@ -213,7 +230,8 @@ class BetterScreen(object):
         self._original_screen = None
 
     def _reset_screen(self):
-        """ Reset the Screen content. (also called when switching from/to
+        """(BetterScreen) -> NoneType
+        Reset the Screen content. (also called when switching from/to
         alternate buffer. """
         self.pt_screen = Screen(default_char=Char(' ', DEFAULT_TOKEN))
 
@@ -231,6 +249,9 @@ class BetterScreen(object):
         self.max_y = 0  # Max 'y' position to which is written.
 
     def resize(self, lines=None, columns=None):
+        """(BetterScreen, NoneType, Nonetype) -> NoneType
+        Allows the window to be resized.
+        """
         # don't do anything except saving the dimensions
         lines = lines if lines is not None else self.lines
         columns = columns if columns is not None else self.columns
@@ -246,7 +267,8 @@ class BetterScreen(object):
             self._reset_offset_and_margins()
 
     def set_margins(self, top=None, bottom=None):
-        """Selects top and bottom margins for the scrolling region.
+        """(BetterScreen, NoneType, NoneType) -> NoneType
+        Selects top and bottom margins for the scrolling region.
         Margins determine which screen lines move during scrolling
         (see :meth:`index` and :meth:`reverse_index`). Characters added
         outside the scrolling region do not cause the screen to scroll.
@@ -276,7 +298,7 @@ class BetterScreen(object):
             self.cursor_position()
 
     def _reset_offset_and_margins(self):
-        """
+        """(BetterScreen) -> NoneType
         Recalculate offset and move cursor (make sure that the bottom is
         visible.)
         """
@@ -386,6 +408,9 @@ class BetterScreen(object):
         self.charset = 1
 
     def draw(self, char):
+        """(BetterScreen, char) -> NoneType
+        *Description*
+        """
         pt_screen = self.pt_screen
         cursor_position = pt_screen.cursor_position
 
@@ -430,11 +455,14 @@ class BetterScreen(object):
         self.max_y = max(self.max_y, cursor_position.y)
 
     def carriage_return(self):
-        " Move the cursor to the beginning of the current line. "
+        """(BetterScreen) -> NoneType
+        Move the cursor to the beginning of the current line.
+        """
         self.pt_screen.cursor_position.x = 0
 
     def index(self):
-        """Move the cursor down one line in the same column. If the
+        """(BetterScreen) -> NoneType
+        Move the cursor down one line in the same column. If the
         cursor is at the last line, create a new line at the bottom.
         """
         top, bottom = self.margins
@@ -460,7 +488,7 @@ class BetterScreen(object):
             self._history_cleanup_counter = 0
 
     def _remove_old_lines_from_history(self):
-        """
+        """(BetterScreen) -> NoneType
         Remove top from the scroll buffer. (Outside bounds of history limit.)
         """
         remove_above = max(0, self.pt_screen.cursor_position.y - self.get_history_limit())
@@ -470,7 +498,7 @@ class BetterScreen(object):
                 del data_buffer[line]
 
     def clear_history(self):
-        """
+        """(BetterScreen) -> NoneType
         Delete all history from the scroll buffer.
         """
         for line in list(self.data_buffer):
@@ -478,6 +506,9 @@ class BetterScreen(object):
                 del self.data_buffer[line]
 
     def reverse_index(self):
+        """(BetterScreen) -> NoneType
+        *Description*
+        """
         top, bottom = self.margins
         line_offset = self.line_offset
 
@@ -490,7 +521,8 @@ class BetterScreen(object):
             self.cursor_up()
 
     def linefeed(self):
-        """Performs an index and, if :data:`~pyte.modes.LNM` is set, a
+        """(BetterScreen) -> NoneType
+        Performs an index and, if :data:`~pyte.modes.LNM` is set, a
         carriage return.
         """
         self.index()
@@ -501,14 +533,17 @@ class BetterScreen(object):
         self.ensure_bounds()
 
     def next_line(self):
-        """ When `EscE` has been received. Go to the next line, even when LNM has
-        not been set. """
+        """(BetterScreen) -> NoneType
+        When `EscE` has been received. Go to the next line, even when LNM has
+        not been set.
+        """
         self.index()
         self.carriage_return()
         self.ensure_bounds()
 
     def tab(self):
-        """Move to the next tab space, or the end of the screen if there
+        """(BetterScreen) -> NoneType
+        Move to the next tab space, or the end of the screen if there
         aren't anymore left.
         """
         for stop in sorted(self.tabstops):
@@ -521,13 +556,16 @@ class BetterScreen(object):
         self.pt_screen.cursor_position.x = column
 
     def backspace(self):
-        """Move cursor to the left one or keep it in it's position if
+        """(BetterScreen) -> NoneType
+        Move cursor to the left one or keep it in it's position if
         it's at the beginning of the line already.
         """
         self.cursor_back()
 
     def save_cursor(self):
-        """Push the current cursor position onto the stack."""
+        """(BetterScreen) -> NoneType
+        Push the current cursor position onto the stack.
+        """
         self.savepoints.append(_Savepoint(
             copy.copy(self.pt_screen.cursor_position),
             self.g0_charset,
@@ -538,7 +576,8 @@ class BetterScreen(object):
             self._attrs))
 
     def restore_cursor(self):
-        """Set the current cursor position to whatever cursor is on top
+        """(BetterScreen) -> NoneType
+        Set the current cursor position to whatever cursor is on top
         of the stack.
         """
         if self.savepoints:
@@ -563,7 +602,8 @@ class BetterScreen(object):
             self.cursor_position()
 
     def insert_lines(self, count=None):
-        """Inserts the indicated # of lines at line with cursor. Lines
+        """(BetterScreen, NoneType) -> NoneType
+        Inserts the indicated # of lines at line with cursor. Lines
         displayed **at** and below the cursor move down. Lines moved
         past the bottom margin are lost.
 
@@ -584,7 +624,8 @@ class BetterScreen(object):
             self.carriage_return()
 
     def delete_lines(self, count=None):
-        """Deletes the indicated # of lines, starting at line with
+        """(BetterScreen, NoneType) -> NoneType
+        Deletes the indicated # of lines, starting at line with
         cursor. As lines are deleted, lines displayed below cursor
         move up. Lines added to bottom of screen have spaces with same
         character attributes as last line moved up.
@@ -607,7 +648,8 @@ class BetterScreen(object):
                     self.data_buffer[line + self.line_offset] = self.data_buffer[line + count + self.line_offset]
 
     def insert_characters(self, count=None):  # XXX: used by pressing space in bash vi mode
-        """Inserts the indicated # of blank characters at the cursor
+        """(BetterScreen, NoneType) -> NoneType
+        Inserts the indicated # of blank characters at the cursor
         position. The cursor does not move and remains at the beginning
         of the inserted blank characters. Data on the line is shifted
         forward.
@@ -626,6 +668,9 @@ class BetterScreen(object):
                 del line[i]
 
     def delete_characters(self, count=None):
+        """(BetterScreen, NoneType) -> NoneType
+        *Description*
+        """
         count = count or 1
 
         line = self.data_buffer[self.pt_screen.cursor_position.y]
