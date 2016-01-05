@@ -124,7 +124,8 @@ class BetterStream(Stream):
                         private = True
                     elif char in CTRL_SEQUENCES_ALLOWED_IN_CSI:
                         dispatch(basic[char])
-                    elif char == ctrl.SP:
+                    elif char in (ctrl.SP, '>'):
+                        # Ignore '>' because of 'ESC[>c' (Send device attributes.)
                         pass
                     elif char.isdigit():
                         current += char
