@@ -52,6 +52,8 @@ class Pane(object):
     _pane_counter = 1000  # Start at 1000, to be sure to not confuse this with pane indexes.
 
     def __init__(self, process):
+        """(BetterScreen, type(process)) -> NoneType
+        """
         assert isinstance(process, Process)
 
         self.process = process
@@ -167,6 +169,8 @@ class Window(object):
     _window_counter = 1000  # Start here, to avoid confusion with window index.
 
     def __init__(self, index=0):
+        """(BetterScreen, int) -> NoneType
+        """
         self.index = index
         self.root = HSplit()
         self._active_pane = None
