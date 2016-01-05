@@ -409,11 +409,11 @@ def get_cwd_for_pid(pid):
             pass
 
 
-def get_name_for_fd(fd):
-    """
-    Return the process name for a given process ID.
-    """
-    if sys.platform in ('linux', 'linux2'):
+if sys.platform in ('linux', 'linux2'):
+    def get_name_for_fd(fd):
+        """
+        Return the process name for a given process ID.
+        """
         pgrp = os.tcgetpgrp(fd)
 
         try:
@@ -421,3 +421,22 @@ def get_name_for_fd(fd):
                 return f.read().decode('utf-8', 'ignore').split('\0')[0]
         except IOError:
             pass
+elif sys.platform == 'darwin':
+    from .darwin import get_proc_name
+
+    def get_name_for_fd(fd):
+        """
+        Return the process name for a given process ID.
+        """
+        pgrp = os.tcgetpgrp(fd)
+
+        try:
+            return get_proc_name(pgrp)
+        except IOError:
+            pass
+else:
+    def get_name_for_fd(fd):
+        """
+        Return the process name for a given process ID.
+        """
+        return
