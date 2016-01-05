@@ -19,6 +19,7 @@ import signal
 import sys
 import time
 import traceback
+import datetime
 
 __all__ = (
     'Process',
@@ -45,22 +46,28 @@ class Process(object):
         this calls execv.)
     :param bell_func: Called when the process does a `bell`.
     :param done_callback: Called when the process terminates.
+    :param has_priority: Callable that returns True when this Process should
+        get priority in the event loop. (When this pane has the focus.)
+        Otherwise output can be delayed.
     """
-    def __init__(self, eventloop, invalidate, exec_func, bell_func=None, done_callback=None):
+    def __init__(self, eventloop, invalidate, exec_func, bell_func=None,
+                 done_callback=None, has_priority=None):
         assert isinstance(eventloop, EventLoop)
         assert callable(invalidate)
         assert callable(exec_func)
         assert bell_func is None or callable(bell_func)
         assert done_callback is None or callable(done_callback)
+        assert has_priority is None or callable(has_priority)
 
         self.eventloop = eventloop
         self.invalidate = invalidate
         self.exec_func = exec_func
         self.done_callback = done_callback
+        self.has_priority = has_priority or (lambda: True)
+
         self.pid = None
         self.is_terminated = False
         self.suspended = False
-        self.slow_motion = False  # For debugging
 
         # Create pseudo terminal for this pane.
         self.master, self.slave = os.openpty()
@@ -90,7 +97,7 @@ class Process(object):
 
     @classmethod
     def from_command(cls, eventloop, invalidate, command, done_callback,
-                     bell_func=None, before_exec_func=None):
+                     bell_func=None, before_exec_func=None, has_priority=None):
         """
         Create Process from command,
         e.g. command=['python', '-c', 'print("test")']
@@ -109,7 +116,8 @@ class Process(object):
                     os.execv(path, command)
 
         return cls(eventloop, invalidate, execv,
-                   bell_func=bell_func, done_callback=done_callback)
+                   bell_func=bell_func, done_callback=done_callback,
+                   has_priority=has_priority)
 
     def _start(self):
         """
@@ -256,27 +264,42 @@ class Process(object):
         """
         Read callback, called by the eventloop.
         """
-        if self.slow_motion:
-            # Read characters one-by-one in slow motion.
-            d = self._reader.read(1)
-        else:
-            d = self._reader.read()
+        d = self._reader.read(1024)  # Make sure not to read too much at once. (Otherwise,
+                                     # this could block the event loop.)
 
         if d:
-            self.stream.feed(d)
-            self.invalidate()
+            def process():
+                self.stream.feed(d)
+                self.invalidate()
+
+            # Feed directly, if this process has priority. (That is when this
+            # pane has the focus in any of the clients.)
+            if self.has_priority():
+                process()
+
+            # Otherwise, postpone processing until we have CPU time available.
+            else:
+                self.eventloop.remove_reader(self.master)
+
+                def do_asap():
+                    " Process output and reconnect to event loop. "
+                    process()
+                    self._connect_reader()
+
+                # When the event loop is saturated because of CPU, we will
+                # postpone this processing max 'x' seconds.
+
+                # '1' seems like a reasonable value, because that way we say
+                # that we will process max 1k/1s in case of saturation.
+                # That should be enough to prevent the UI from feeling
+                # unresponsive.
+                timestamp = datetime.datetime.now() + datetime.timedelta(seconds=1)
+
+                self.eventloop.call_from_executor(
+                    do_asap, _max_postpone_until=timestamp)
         else:
             # End of stream. Remove child.
             self.eventloop.remove_reader(self.master)
-
-        # In case of slow motion, disconnect for .5 seconds from the event loop.
-        if self.slow_motion:
-            self.eventloop.remove_reader(self.master)
-
-            def connect_with_delay():
-                time.sleep(.1)
-                self.eventloop.call_from_executor(self._connect_reader)
-            self.eventloop.run_in_executor(connect_with_delay)
 
     def suspend(self):
         """

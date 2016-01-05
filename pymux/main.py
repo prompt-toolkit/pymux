@@ -258,10 +258,14 @@ class Pymux(object):
             command = [self.default_shell]
 
         # Create process and pane.
+        def has_priority():
+            return self.arrangement.pane_has_priority(pane)
+
         process = Process.from_command(
             self.eventloop, self.invalidate, command, done_callback,
             bell_func=bell,
-            before_exec_func=before_exec)
+            before_exec_func=before_exec,
+            has_priority=has_priority)
 
         pane = Pane(process)
 

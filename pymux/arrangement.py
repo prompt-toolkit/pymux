@@ -572,6 +572,19 @@ class Arrangement(object):
         # is attached.
         self._last_active_window = None
 
+    def pane_has_priority(self, pane):
+        """
+        Return True when this Pane sohuld get priority in the output processing.
+        This is true for panes that have the focus in any of the visible windows.
+        """
+        windows = set(self._active_window_for_cli.values())
+
+        for w in windows:
+            if w.active_pane == pane:
+                return True
+
+        return False
+
     def invalidation_hash(self, cli):
         """
         When this changes, the layout needs to be rebuild.
