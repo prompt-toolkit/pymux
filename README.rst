@@ -137,22 +137,6 @@ Some ideas:
 - Better autocompletion.
 
 
-About Mac OS X support
-----------------------
-
-Pymux should work perfectly on OS X, just like on Linux systems. There is one
-bug however: window names are not updated automatically according to the name
-of the process. It displays ``(noname)`` on OS X.
-
-The reason for this is that on Linux, it's very easy to get the process name.
-It works by reading the content of ``/proc/(process_group)/cmdline``.  On OS X,
-this appears to be a system call, named ``proc_pidinfo``. There is a library
-called ``psutil`` that has the required functionality, but it's written in C. I
-won't include that, we don't want to depend on modules that require
-compilation. But if someone could contribute something based on ctypes, that
-would be much appreciated.
-
-
 Configuring
 -----------
 
