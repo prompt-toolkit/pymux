@@ -4,7 +4,6 @@ import os
 import re
 import shlex
 import six
-import sys
 
 from prompt_toolkit.document import Document
 from prompt_toolkit.enums import SEARCH_BUFFER

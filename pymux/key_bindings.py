@@ -198,6 +198,7 @@ class KeyBindingsManager(object):
             client_state.confirm_text = None
 
         @registry.add_binding(Keys.ControlC, filter=in_scroll_buffer_not_searching)
+        @registry.add_binding(Keys.ControlJ, filter=in_scroll_buffer_not_searching)
         @registry.add_binding('q', filter=in_scroll_buffer_not_searching)
         def _(event):
             " Exit scroll buffer. "
