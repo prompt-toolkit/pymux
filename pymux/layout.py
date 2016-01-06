@@ -19,6 +19,7 @@ from prompt_toolkit.layout.screen import Char, Screen
 from prompt_toolkit.layout.toolbars import TokenListToolbar
 from prompt_toolkit.mouse_events import MouseEventTypes
 
+from six.moves import range
 from pygments.token import Token
 
 import pymux.arrangement as arrangement

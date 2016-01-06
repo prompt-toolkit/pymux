@@ -14,6 +14,7 @@ from pygments.formatters.terminal256 import Terminal256Formatter
 from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
+from six.moves import range
 
 from prompt_toolkit.layout.screen import Screen, Char
 from prompt_toolkit.styles import Attrs
@@ -386,6 +387,9 @@ class BetterScreen(object):
         self.charset = 1
 
     def draw(self, char):
+        """
+        Draw a single character.
+        """
         pt_screen = self.pt_screen
         cursor_position = pt_screen.cursor_position
 
@@ -396,7 +400,7 @@ class BetterScreen(object):
             char = char.translate(self.g0_charset)
 
         # Create 'Char' instance.
-        token = ('C', ) + self._attrs  # XXX: cache this one.
+        token = ('C', ) + self._attrs
         pt_char = _CHAR_CACHE[char, token]
         char_width = pt_char.width
 
