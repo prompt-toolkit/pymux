@@ -1,5 +1,16 @@
+"""
+Tools for Darwin. (Mac OS X.)
+"""
+from __future__ import unicode_literals
 from ctypes import cdll, pointer, c_uint, c_ubyte, c_ulong
 from struct import pack
+
+import six
+
+__all__ = (
+    'get_proc_info',
+    'get_proc_name'
+)
 
 # Current Values as of El Capitan
 
@@ -24,23 +35,25 @@ P_COMM_OFFSET = 243
 
 LIBC = None
 
-def init():
+
+def _init():
     """
-    initialize ctypes DLL link
+    Initialize ctypes DLL link.
     """
     global LIBC
 
     if LIBC is None:
         LIBC = cdll.LoadLibrary('libc.dylib')
 
+
 def get_proc_info(pid):
     """
-    use sysctl to retrieve process info
+    Use sysctl to retrieve process info.
     """
-    # ensure that we have the DLL loaded
-    init()
+    # Ensure that we have the DLL loaded.
+    _init()
 
-    # request the length of the process data
+    # Request the length of the process data.
     mib = (c_uint * 4)(CTL_KERN, KERN_PROC, KERN_PROC_PID, pid)
     oldlen = c_ulong()
     oldlenp = pointer(oldlen)
@@ -48,7 +61,7 @@ def get_proc_info(pid):
     if r:
         return
 
-    # request the process data
+    # Request the process data.
     reslen = oldlen.value
     old = (c_ubyte * reslen)()
     oldp = pointer(old)
@@ -62,17 +75,14 @@ def get_proc_info(pid):
 
 def get_proc_name(pid):
     """
-    use sysctl to retrive process name
+    Use sysctl to retrive process name.
     """
     proc_kinfo = get_proc_info(pid)
     if not proc_kinfo:
         return
 
-    p_comm_range = proc_kinfo[P_COMM_OFFSET:P_COMM_OFFSET+MAXCOMLEN+1]
-    p_comm_raw = ''.join(chr(c) for c in p_comm_range)
+    p_comm_range = proc_kinfo[P_COMM_OFFSET:P_COMM_OFFSET + MAXCOMLEN + 1]
+    p_comm_raw = ''.join(six.unichr(c) for c in p_comm_range)
     p_comm = p_comm_raw.split('\0', 1)[0]
 
     return p_comm
-
-__all__ = ['get_proc_info', 'get_proc_name']
-
