@@ -311,6 +311,7 @@ class Window(object):
             # When the parent has only one item left, collapse into its parent.
             while len(p) == 1 and p != self.root:
                 p2 = self._get_parent(p)
+                p2.weights[p[0]] = p2.weights[p]  # Keep dimensions.
                 i = p2.index(p)
                 p2[i] = p[0]
                 p = p2
