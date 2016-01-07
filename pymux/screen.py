@@ -390,8 +390,14 @@ class BetterScreen(object):
         """
         Draw a single character.
         """
+        # Aliases for variables that are used more than once in this function.
+        # For better performance. (This draw function is called for every
+        # printable character that a process outputs; it should be as
+        # performant as possible.)
         pt_screen = self.pt_screen
         cursor_position = pt_screen.cursor_position
+        cursor_position_x = cursor_position.x
+        cursor_position_y = cursor_position.y
 
         # Translating a given character.
         if self.charset:
@@ -408,12 +414,13 @@ class BetterScreen(object):
         # enabled, move the cursor to the beginning of the next line,
         # otherwise replace characters already displayed with newly
         # entered.
-        if cursor_position.x >= self.columns:
+        if cursor_position_x >= self.columns:
             if mo.DECAWM in self.mode:
                 self.carriage_return()
                 self.linefeed()
             else:
                 cursor_position.x -= char_width
+                cursor_position_x = cursor_position.x
 
         # If Insert mode is set, new characters move old characters to
         # the right, otherwise terminal is in Replace mode and new
@@ -421,17 +428,17 @@ class BetterScreen(object):
         if mo.IRM in self.mode:
             self.insert_characters(char_width)
 
-        row = pt_screen.data_buffer[cursor_position.y]
-        row[cursor_position.x] = pt_char
+        row = pt_screen.data_buffer[cursor_position_y]
+        row[cursor_position_x] = pt_char
 
         if char_width > 1:
-            row[cursor_position.x + 1] = _CHAR_CACHE[' ', token]
+            row[cursor_position_x + 1] = _CHAR_CACHE[' ', token]
 
         # .. note:: We can't use :meth:`cursor_forward()`, because that
         #           way, we'll never know when to linefeed.
         cursor_position.x += char_width
 
-        self.max_y = max(self.max_y, cursor_position.y)
+        self.max_y = max(self.max_y, cursor_position_y)
 
     def carriage_return(self):
         " Move the cursor to the beginning of the current line. "

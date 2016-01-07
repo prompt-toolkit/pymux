@@ -265,7 +265,7 @@ class Process(object):
         """
         Read callback, called by the eventloop.
         """
-        d = self._reader.read(1024)  # Make sure not to read too much at once. (Otherwise,
+        d = self._reader.read(4096)  # Make sure not to read too much at once. (Otherwise,
                                      # this could block the event loop.)
 
         if d:
