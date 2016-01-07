@@ -13,7 +13,6 @@ from prompt_toolkit.interface import CommandLineInterface
 from prompt_toolkit.key_binding.vi_state import InputMode, ViState
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.terminal.vt100_output import Vt100_Output, _get_size
-from prompt_toolkit.utils import Callback
 
 from .arrangement import Arrangement, Pane, Window
 from .commands.commands import handle_command, call_command_handler
@@ -389,6 +388,12 @@ class Pymux(object):
             output=output,
             input=input,
             eventloop=self.eventloop)
+
+        # Set render postpone time. (.1 instead of 0).
+        # This small change ensures that if for a split second a process
+        # outputs a lot of information, we don't give the highest priority to
+        # rendering output. (Nobody reads that fast in real-time.)
+        cli.max_render_postpone_time = .1  # Second.
 
         # Hide message when a key has been pressed.
         def key_pressed():
