@@ -38,13 +38,14 @@ class BetterStream(Stream):
         # Start parser.
         self._parser = self._parser_generator()
         self._parser.send(None)
+        self._send = self._parser.send
 
-    def feed(self, chars):  # TODO: Handle exceptions.
+    def feed(self, chars):
         """
         Custom, much more efficient 'feed' function.
         """
         # Send all input to the parser coroutine.
-        send = self._parser.send
+        send = self._send
 
         for c in chars:
             send(c)
@@ -59,6 +60,15 @@ class BetterStream(Stream):
 
         It's actually a state machine, implemented as a coroutine. So all the
         'state' that we have is stored in local variables.
+
+        This generator is not the most beautiful, but it is as performant as
+        possible. When a process generates a lot of output (That is often much
+        more than a person would give as input), then this will be the
+        bottleneck, because it processes just one character at a time.
+
+        We did many manual optimizations to this function in order to make it
+        as efficient as possible. Don't change anything without profiling
+        first.
         """
         listener = self.listener
         draw = listener.draw
@@ -73,15 +83,21 @@ class BetterStream(Stream):
 
         ESC = ctrl.ESC
         CSI = ctrl.CSI
-        NUL_OR_DEL = (ctrl.NUL, ctrl.DEL)
-        CTRL_SEQUENCES_ALLOWED_IN_CSI = (
-            ctrl.BEL, ctrl.BS, ctrl.HT, ctrl.LF, ctrl.VT, ctrl.FF, ctrl.CR)
+        CTRL_SEQUENCES_ALLOWED_IN_CSI = set([
+            ctrl.BEL, ctrl.BS, ctrl.HT, ctrl.LF, ctrl.VT, ctrl.FF, ctrl.CR])
+        NOT_DRAW = set([ESC, CSI, ctrl.NUL, ctrl.DEL]) | set(basic)
 
         def dispatch(event, *args, **flags):
             getattr(listener, event)(*args, **flags)
 
         while True:
             char = yield
+
+            # Handle normal draw operations first. (All overhead here is the
+            # most expensive.)
+            while char not in NOT_DRAW:
+                draw(char)
+                char = yield
 
             if char == ESC:  # \x1b
                 char = yield
@@ -140,6 +156,3 @@ class BetterStream(Stream):
                             else:
                                 dispatch(csi[char], *params)
                             break  # Break outside CSI loop.
-
-            elif char not in NUL_OR_DEL:
-                draw(char)
