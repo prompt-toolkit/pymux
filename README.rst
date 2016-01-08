@@ -165,4 +165,6 @@ Special thanks
 - `prompt_toolkit
   <https://github.com/jonathanslenders/python-prompt-toolkit>`_, for the UI
   toolkit.
+- `wcwidth <https://github.com/jquast/wcwidth>`_: for better unicode support
+  (support of double width characters).
 - `tmux <https://tmux.github.io/>`_, for the inspiration.
