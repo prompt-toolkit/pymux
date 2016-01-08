@@ -140,24 +140,34 @@ class KeyBindingsManager(object):
             #       the pane that will probably echo back the typed characters.
             #       When we receive them, they are draw to the UI and it's
             #       invalidated.
-            pane = pymux.arrangement.get_active_pane(event.cli)
+            w = pymux.arrangement.get_active_window(event.cli)
+            pane = w.active_pane
 
             if pane.clock_mode:
                 # Leave clock mode on key press.
                 pane.clock_mode = False
                 pymux.invalidate()
             else:
-                pane.process.write_key(event.key_sequence[0].key)
+                # Write input to pane. If 'synchronize_panes' is on, write
+                # input to all panes in the current window.
+                panes = w.panes if w.synchronize_panes else [pane]
+                for p in panes:
+                    p.process.write_key(event.key_sequence[0].key)
 
         @registry.add_binding(Keys.BracketedPaste, filter=pane_input_allowed, invalidate_ui=False)
         def _(event):
             """
             Pasting to the active pane. (Using bracketed paste.)
             """
-            pane = pymux.arrangement.get_active_pane(event.cli)
+            w = pymux.arrangement.get_active_window(event.cli)
+            pane = w.active_pane
 
             if not pane.clock_mode:
-                pane.process.write_input(event.data, paste=True)
+                # Paste input to pane. If 'synchronize_panes' is on, paste
+                # input to all panes in the current window.
+                panes = w.panes if w.synchronize_panes else [pane]
+                for p in panes:
+                    p.process.write_input(event.data, paste=True)
 
         @registry.add_binding(Keys.Any, filter=has_prefix)
         def _(event):

@@ -561,18 +561,26 @@ def source_file(pymux, cli, variables):
 
 
 @cmd('set-option', options='<option> <value>')
-def set_option(pymux, cli, variables):
+def set_option(pymux, cli, variables, window=False):
     name = variables['<option>']
     value = variables['<value>']
 
-    option = pymux.options.get(name)
+    if window:
+        option = pymux.window_options.get(name)
+    else:
+        option = pymux.options.get(name)
+
     if option:
         try:
-            option.set_value(pymux, value)
+            option.set_value(pymux, cli, value)
         except SetOptionError as e:
             raise CommandException(e.message)
     else:
         raise CommandException('Invalid option: %s' % (name, ))
+
+@cmd('set-window-option', options='<option> <value>')
+def set_window_option(pymux, cli, variables):
+    set_option(pymux, cli, variables, window=True)
 
 
 @cmd('display-panes')

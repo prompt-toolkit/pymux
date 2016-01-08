@@ -14,6 +14,7 @@ __all__ = (
     'SetOptionError',
     'OnOffOption',
     'ALL_OPTIONS',
+    'ALL_WINDOW_OPTIONS',
 )
 
 
@@ -29,7 +30,7 @@ class Option(six.with_metaclass(ABCMeta, object)):
         """
 
     @abstractmethod
-    def set_value(self):
+    def set_value(self, pymux, cli, value):
         " Set option. This can raise SetOptionError. "
 
 
@@ -45,17 +46,22 @@ class OnOffOption(Option):
     """
     Boolean on/off option.
     """
-    def __init__(self, attribute_name):
+    def __init__(self, attribute_name, window_option=False):
         self.attribute_name = attribute_name
+        self.window_option = window_option
 
     def get_all_values(self, pymux):
         return ['on', 'off']
 
-    def set_value(self, pymux, value):
+    def set_value(self, pymux, cli, value):
         value = value.lower()
 
         if value in ('on', 'off'):
-            setattr(pymux, self.attribute_name, (value == 'on'))
+            if self.window_option:
+                w = pymux.arrangement.get_active_window(cli)
+                setattr(w, self.attribute_name, (value == 'on'))
+            else:
+                setattr(pymux, self.attribute_name, (value == 'on'))
         else:
             raise SetOptionError('Expecting "yes" or "no".')
 
@@ -73,7 +79,7 @@ class StringOption(Option):
             self.possible_values + [getattr(pymux, self.attribute_name)]
         ))
 
-    def set_value(self, pymux, value):
+    def set_value(self, pymux, cli, value):
         setattr(pymux, self.attribute_name, value)
 
 
@@ -91,7 +97,7 @@ class PositiveIntOption(Option):
             ['%s' % getattr(pymux, self.attribute_name)]
         ))
 
-    def set_value(self, pymux, value):
+    def set_value(self, pymux, cli, value):
         """
         Take a string, and return an integer. Raise SetOptionError when the
         given text does not parse to a positive integer.
@@ -110,7 +116,7 @@ class KeyPrefixOption(Option):
     def get_all_values(self, pymux):
         return PYMUX_TO_PROMPT_TOOLKIT_KEYS.keys()
 
-    def set_value(self, pymux, value):
+    def set_value(self, pymux, cli, value):
         # Translate prefix to prompt_toolkit
         try:
             keys = pymux_key_to_prompt_toolkit_key_sequence(value)
@@ -125,7 +131,7 @@ class BaseIndexOption(Option):
     def get_all_values(self, pymux):
         return ['0', '1']
 
-    def set_value(self, pymux, value):
+    def set_value(self, pymux, cli, value):
         try:
             value = int(value)
         except ValueError:
@@ -142,7 +148,7 @@ class KeysOption(Option):
     def get_all_values(self, pymux):
         return ['emacs', 'vi']
 
-    def set_value(self, pymux, value):
+    def set_value(self, pymux, cli, value):
         if value in ('emacs', 'vi'):
             setattr(pymux, self.attribute_name, value == 'vi')
         else:
@@ -155,7 +161,7 @@ class JustifyOption(Option):
     def get_all_values(self, pymux):
         return Justify._ALL
 
-    def set_value(self, pymux, value):
+    def set_value(self, pymux, cli, value):
         if value in Justify._ALL:
             setattr(pymux, self.attribute_name, value)
         else:
@@ -184,4 +190,9 @@ ALL_OPTIONS = {
     'default-shell': StringOption(
         'default_shell', [get_default_shell()]),
     'status-justify': JustifyOption('status_justify'),
+}
+
+
+ALL_WINDOW_OPTIONS = {
+    'synchronize_panes': OnOffOption('synchronize_panes', window_option=True),
 }

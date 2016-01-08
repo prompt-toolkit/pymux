@@ -193,6 +193,9 @@ class Window(object):
         #: When true, the current pane is zoomed in.
         self.zoom = False
 
+        #: When True, send input to all panes simultaniously.
+        self.synchronize_panes = False
+
         # Give unique ID.
         Window._window_counter += 1
         self.window_id = Window._window_counter

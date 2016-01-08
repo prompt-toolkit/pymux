@@ -21,7 +21,7 @@ from .enums import COMMAND, PROMPT
 from .key_bindings import KeyBindingsManager
 from .layout import LayoutManager, Justify
 from .log import logger
-from .options import ALL_OPTIONS
+from .options import ALL_OPTIONS, ALL_WINDOW_OPTIONS
 from .process import Process
 from .rc import STARTUP_COMMANDS
 from .server import ServerConnection, bind_socket
@@ -110,6 +110,7 @@ class Pymux(object):
         self.default_shell = get_default_shell()
 
         self.options = ALL_OPTIONS
+        self.window_options = ALL_WINDOW_OPTIONS
 
         # When no panes are available.
         self.original_cwd = os.getcwd()

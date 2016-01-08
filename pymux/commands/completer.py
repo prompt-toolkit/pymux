@@ -79,11 +79,15 @@ def get_completions_for_parts(parts, last_part, complete_event, pymux):
         flags = get_option_flags_for_command(parts[0])
         completer = WordCompleter(sorted(flags), WORD=True)
 
-    elif len(parts) == 1 and parts[0] == 'set-option':
-        completer = WordCompleter(sorted(pymux.options.keys()), sentence=True)
+    elif len(parts) == 1 and parts[0] in ('set-option', 'set-window-option'):
+        options = pymux.options if parts[0] == 'set-option' else pymux.window_options
 
-    elif len(parts) == 2 and parts[0] == 'set-option':
-        option = pymux.options.get(parts[1])
+        completer = WordCompleter(sorted(options.keys()), sentence=True)
+
+    elif len(parts) == 2 and parts[0] in ('set-option', 'set-window-option'):
+        options = pymux.options if parts[0] == 'set-option' else pymux.window_options
+
+        option = options.get(parts[1])
         if option:
             completer = WordCompleter(sorted(option.get_all_values(pymux)), sentence=True)
 
