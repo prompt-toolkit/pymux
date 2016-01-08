@@ -44,7 +44,7 @@ def format_pymux_string(pymux, cli, string, window=None, pane=None):
         return '%s' % (window.index, )
 
     def name_of_window():
-        return window.name
+        return window.name or '(noname)'
 
     def window_flags():
         z = 'Z' if window.zoom else ''

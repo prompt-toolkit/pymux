@@ -372,7 +372,7 @@ def rename_pane(pymux, cli, variables):
     """
     Rename the active pane.
     """
-    pymux.arrangement.get_active_pane(cli).name = variables['<name>']
+    pymux.arrangement.get_active_pane(cli).chosen_name = variables['<name>']
 
 
 @cmd('rename-session', options='<name>')
