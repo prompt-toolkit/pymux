@@ -63,6 +63,8 @@ Pymux implements a few improvements over tmux:
 - Support for 24bit true color. (Disabled by default: not all terminals support
   it. Use the ``--truecolor`` option at startup or during attach in order to
   enable it.)
+- Support for unicode input and output. Pymux correctly understands utf-8
+  encoded double width characters. (Also for the titlebars.)
 
 About the performance:
 
