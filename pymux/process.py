@@ -77,8 +77,8 @@ class Process(object):
         self._reader = PosixStdinReader(self.master)
 
         # Create output stream and attach to screen
-        self.sx = 120
-        self.sy = 24
+        self.sx = 0
+        self.sy = 0
 
         self.screen = BetterScreen(self.sx, self.sy,
                                    write_process_input=self.write_input,
@@ -91,7 +91,7 @@ class Process(object):
         """
         Start the process: fork child.
         """
-        self.set_size(self.sx, self.sy)
+        self.set_size(120, 24)
         self._start()
         self._connect_reader()
         self._waitpid()
@@ -172,7 +172,8 @@ class Process(object):
         assert isinstance(height, int)
 
         if self.master is not None:
-            set_terminal_size(self.master, height, width)
+            if (self.sx, self.sy) != (width, height):
+                set_terminal_size(self.master, height, width)
         self.screen.resize(lines=height, columns=width)
 
         self.screen.lines = height
