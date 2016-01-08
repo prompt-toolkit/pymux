@@ -404,14 +404,14 @@ def get_cwd_for_pid(pid):
     """
     Return the current working directory for a given process ID.
     """
-    if sys.platform in ('linux', 'linux2'):
+    if sys.platform in ('linux', 'linux2', 'cygwin'):
         try:
             return os.readlink('/proc/%s/cwd' % pid)
         except OSError:
             pass
 
 
-if sys.platform in ('linux', 'linux2'):
+if sys.platform in ('linux', 'linux2', 'cygwin'):
     def get_name_for_fd(fd):
         """
         Return the process name for a given process ID.
