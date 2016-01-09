@@ -194,5 +194,5 @@ ALL_OPTIONS = {
 
 
 ALL_WINDOW_OPTIONS = {
-    'synchronize_panes': OnOffOption('synchronize_panes', window_option=True),
+    'synchronize-panes': OnOffOption('synchronize_panes', window_option=True),
 }
