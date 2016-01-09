@@ -80,6 +80,7 @@ class Client(object):
                             o = Vt100_Output.from_pty(sys.stdout)
                             o.quit_alternate_screen()
                             o.disable_mouse_support()
+                            o.disable_bracketed_paste()
                             o.reset_attributes()
                             o.flush()
                             return
