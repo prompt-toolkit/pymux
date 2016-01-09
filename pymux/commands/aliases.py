@@ -39,6 +39,7 @@ ALIASES = {
     'selectw': 'select-window',
     'send': 'send-keys',
     'set': 'set-option',
+    'setw': 'set-window-option',
     'source': 'source-file',
     'splitw': 'split-window',
     'suspendc': 'suspend-client',
