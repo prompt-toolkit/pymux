@@ -3,6 +3,7 @@ import getpass
 import json
 import socket
 import logging
+import tempfile
 
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.terminal.vt100_input import InputStream
@@ -172,7 +173,8 @@ def bind_socket(socket_name=None):
         i = 0
         while True:
             try:
-                socket_name = '/tmp/pymux.sock.%s.%i' % (getpass.getuser(), i)
+                socket_name = '%s/pymux.sock.%s.%i' % (
+                    tempfile.gettempdir(), getpass.getuser(), i)
                 s.bind(socket_name)
                 return socket_name, s
             except (OSError, socket.error):
