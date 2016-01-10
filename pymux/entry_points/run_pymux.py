@@ -34,6 +34,7 @@ import getpass
 import logging
 import os
 import sys
+import tempfile
 
 __all__ = (
     'run',
@@ -56,7 +57,8 @@ def run():
 
     # Expand socket name. (Make it possible to just accept numbers.)
     if socket_name and socket_name.isdigit():
-        socket_name = '/tmp/pymux.sock.%s.%s' % (getpass.getuser(), socket_name)
+        socket_name = '%s/pymux.sock.%s.%s' % (
+            tempfile.gettempdir(), getpass.getuser(), socket_name)
 
     # Configuration filename.
     default_config = os.path.abspath(os.path.expanduser('~/.pymux.conf'))

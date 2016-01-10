@@ -14,6 +14,7 @@ import os
 import signal
 import socket
 import sys
+import tempfile
 
 
 __all__ = (
@@ -166,7 +167,8 @@ def list_clients():
     """
     List all the servers that are running.
     """
-    for path in glob.glob('/tmp/pymux.sock.%s.*' % getpass.getuser()):
+    p = '%s/pymux.sock.%s.*' % (tempfile.gettempdir(), getpass.getuser())
+    for path in glob.glob(p):
         try:
             yield Client(path)
         except socket.error:
