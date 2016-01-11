@@ -63,11 +63,13 @@ def pty_make_controlling_tty(tty_fd):
         os.close(fd)
 
     # Verify we now have a controlling tty.
-    fd = os.open("/dev/tty", os.O_WRONLY)
-    if fd < 0:
-        raise Exception("Could not open controlling tty, /dev/tty")
-    else:
-        os.close(fd)
+    if os.name != 'posix':
+        # Skip this on BSD-like systems since it will break.
+        fd = os.open("/dev/tty", os.O_WRONLY)
+        if fd < 0:
+            raise Exception("Could not open controlling tty, /dev/tty")
+        else:
+            os.close(fd)
 
 
 def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
