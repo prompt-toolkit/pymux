@@ -4,7 +4,7 @@ Improvements on Pyte.
 from __future__ import unicode_literals
 from pyte.streams import Stream
 from pyte.escape import NEL
-from pyte import ctrl
+from pyte import control as ctrl
 from collections import defaultdict
 
 __all__ = (
