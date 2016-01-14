@@ -17,12 +17,6 @@ class BetterStream(Stream):
     Extension to the Pyte `Stream` class that also handles "Esc]<num>...BEL"
     sequences. This is used by xterm to set the terminal title.
     """
-    csi = {
-        'n': 'cpr',  # Cursor position request.
-        'c': 'send_device_attributes',  # csi > Ps c
-    }
-    csi.update(Stream.csi)
-
     escape = Stream.escape.copy()
     escape.update({
         # Call next_line instead of line_feed. We always want to go to the left

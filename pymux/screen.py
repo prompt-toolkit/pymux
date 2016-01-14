@@ -970,9 +970,9 @@ class BetterScreen(object):
         elif data.startswith('1;'):
             self.icon_name = data[2:]
 
-    def cpr(self, data):
+    def report_device_status(self, data):
         """
-        Cursor position request.
+        Report cursor position.
         """
         if data == 6:
             y = self.pt_screen.cursor_position.y - self.line_offset + 1
@@ -981,7 +981,7 @@ class BetterScreen(object):
             response = '\x1b[%i;%iR' % (y, x)
             self.write_process_input(response)
 
-    def send_device_attributes(self, data):
+    def report_device_attributes(self, data):
         response = '\x1b[>84;0;0c'
         self.write_process_input(response)
 
