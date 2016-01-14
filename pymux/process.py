@@ -338,7 +338,10 @@ class Process(object):
         assert isinstance(signal, int), type(signal)
 
         if self.pid and not self.is_terminated:
-            os.kill(self.pid, signal)
+            try:
+                os.kill(self.pid, signal)
+            except OSError:
+                pass  # [Errno 3] No such process.
 
     def create_copy_document(self):
         """
