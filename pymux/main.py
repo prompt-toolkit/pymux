@@ -456,7 +456,11 @@ class Pymux(object):
         Returns the socket name.
         """
         if self.socket is None:
+            # Py2 uses 0027 and Py3 uses 0o027, but both know
+            # how to create the right value from the string '0027'.
+            old_umask = os.umask(int('0027', 8))
             self.socket_name, self.socket = bind_socket(socket_name)
+            _ = os.umask(old_umask)
             self.socket.listen(0)
             self.eventloop.add_reader(self.socket.fileno(), self._socket_accept)
 
