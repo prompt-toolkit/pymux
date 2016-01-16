@@ -1,6 +1,15 @@
 CHANGELOG
 =========
 
+0.7: 2016-01-16
+---------------
+
+Fixes:
+- Fixed FreeBSD support.
+- Compatibility with the latest Pyte version.
+- Handle 'No such process' in os.kill.
+
+
 0.6: 2016-01-11
 ---------------
 
