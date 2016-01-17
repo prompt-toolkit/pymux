@@ -22,7 +22,7 @@ setup(
     packages=find_packages('.'),
     install_requires = [
         'prompt_toolkit==0.57',
-        'pyte>=0.4.10',
+        'pyte>=0.5.1',
         'six>=1.9.0',
         'docopt>=0.6.2',
     ],
