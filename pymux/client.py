@@ -57,6 +57,7 @@ class Client(object):
             'cmd': 'start-gui',
             'detach-others': detach_other_clients,
             'true-color': true_color,
+            'term': os.environ.get('TERM', ''),
             'data': ''
         })
 
