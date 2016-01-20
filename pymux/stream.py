@@ -7,6 +7,8 @@ from pyte.escape import NEL
 from pyte import control as ctrl
 from collections import defaultdict
 
+from .log import logger
+
 __all__ = (
     'BetterStream',
 )
@@ -145,8 +147,15 @@ class BetterStream(Stream):
                         if char == ';':
                             current = ''
                         else:
-                            if private:
-                                dispatch(csi[char], *params, private=True)
-                            else:
-                                dispatch(csi[char], *params)
+                            try:
+                                if private:
+                                    dispatch(csi[char], *params, private=True)
+                                else:
+                                    dispatch(csi[char], *params)
+                            except TypeError:
+                                # Handler doesn't take params or private attribute.
+                                # (Not the cleanest way to handle this, but
+                                # it's safe and performant enough.)
+                                logger.warning('Dispatch %s failed. params=%s, private=%s',
+                                               params, private)
                             break  # Break outside CSI loop.
