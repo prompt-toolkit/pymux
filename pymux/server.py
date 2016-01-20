@@ -2,13 +2,14 @@ from __future__ import unicode_literals
 import getpass
 import json
 import socket
-import logging
 import tempfile
 
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.terminal.vt100_input import InputStream
 from prompt_toolkit.terminal.vt100_output import Vt100_Output
 from prompt_toolkit.input import Input
+
+from .log import logger
 
 __all__ = (
     'ServerConnection',
@@ -184,8 +185,8 @@ def bind_socket(socket_name=None):
 
                 # When 100 times failed, cancel server
                 if i == 100:
-                    logging.warning('100 times failed to listen on posix socket. '
-                                    'Please clean up old sockets.')
+                    logger.warning('100 times failed to listen on posix socket. '
+                                   'Please clean up old sockets.')
                     raise
 
 
