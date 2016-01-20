@@ -14,8 +14,7 @@ from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 from prompt_toolkit.interface import CommandLineInterface
 from prompt_toolkit.search_state import SearchState
-
-from pygments.token import Token
+from prompt_toolkit.token import Token
 
 import math
 import os

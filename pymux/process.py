@@ -3,10 +3,10 @@ The child process.
 """
 from __future__ import unicode_literals
 
+from prompt_toolkit.document import Document
 from prompt_toolkit.eventloop.base import EventLoop
 from prompt_toolkit.eventloop.posix_utils import PosixStdinReader
-from prompt_toolkit.document import Document
-from pygments.token import Token
+from prompt_toolkit.token import Token
 from six.moves import range
 
 from .key_mappings import prompt_toolkit_key_to_vt100_key

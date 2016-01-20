@@ -2,8 +2,8 @@
 The color scheme.
 """
 from __future__ import unicode_literals
-from prompt_toolkit.styles import PygmentsStyle, Style, Attrs
-from pygments.token import Token
+from prompt_toolkit.styles import style_from_dict, Style, Attrs
+from prompt_toolkit.token import Token
 
 __all__ = (
     'PymuxStyle',
@@ -73,7 +73,7 @@ class PymuxStyle(Style):
     starting with ('C,) as tokens that describe their own style.
     """
     def __init__(self):
-        self.pygments_style = PygmentsStyle.from_defaults(style_dict=ui_style)
+        self.pygments_style = style_from_dict(ui_style)
         self._token_to_attrs_dict = None
 
     def get_attrs_for_token(self, token):

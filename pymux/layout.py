@@ -9,18 +9,18 @@ from prompt_toolkit.filters import Condition
 from prompt_toolkit.layout.containers import VSplit, HSplit, Window, FloatContainer, Float, ConditionalContainer, Container
 from prompt_toolkit.layout.controls import TokenListControl, FillControl, UIControl, BufferControl
 from prompt_toolkit.layout.dimension import LayoutDimension as D
+from prompt_toolkit.layout.highlighters import SelectionHighlighter, SearchHighlighter
 from prompt_toolkit.layout.lexers import Lexer
 from prompt_toolkit.layout.lexers import SimpleLexer
 from prompt_toolkit.layout.menus import CompletionsMenu
 from prompt_toolkit.layout.processors import BeforeInput, AfterInput, AppendAutoSuggestion, Processor, Transformation
-from prompt_toolkit.layout.highlighters import SelectionHighlighter, SearchHighlighter
 from prompt_toolkit.layout.prompt import DefaultPrompt
 from prompt_toolkit.layout.screen import Char, Screen
 from prompt_toolkit.layout.toolbars import TokenListToolbar
 from prompt_toolkit.mouse_events import MouseEventTypes
+from prompt_toolkit.token import Token
 
 from six.moves import range
-from pygments.token import Token
 
 import pymux.arrangement as arrangement
 import datetime

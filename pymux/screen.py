@@ -10,7 +10,7 @@ Changes compared to the original `Screen` class:
 from __future__ import unicode_literals
 from collections import defaultdict, deque
 
-from pygments.formatters.terminal256 import Terminal256Formatter
+#from pygments.formatters.terminal256 import Terminal256Formatter
 from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
@@ -19,6 +19,8 @@ from six.moves import range
 from prompt_toolkit.layout.screen import Screen, Char
 from prompt_toolkit.styles import Attrs
 from prompt_toolkit.terminal.vt100_output import FG_ANSI_COLORS, BG_ANSI_COLORS
+from prompt_toolkit.terminal.vt100_output import _256_colors as _256_colors_table
+from prompt_toolkit.token import Token
 from collections import namedtuple
 
 import copy
@@ -891,7 +893,7 @@ class BetterScreen(object):
     # Mapping of the escape codes for 256colors to their 'ffffff' value.
     _256_colors = {}
 
-    for i, (r, g, b) in enumerate(Terminal256Formatter().xterm_colors):
+    for i, (r, g, b) in enumerate(_256_colors_table.colors):
         _256_colors[1024 + i] = '%02x%02x%02x' % (r, g, b)
 
     def select_graphic_rendition(self, *attrs):
