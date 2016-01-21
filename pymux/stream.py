@@ -31,10 +31,22 @@ class BetterStream(Stream):
         super(BetterStream, self).__init__()
         self.listener = screen
 
+        self._validate_screen()
+
         # Start parser.
         self._parser = self._parser_generator()
         self._parser.send(None)
         self._send = self._parser.send
+
+    def _validate_screen(self):
+        """
+        Check whether our Screen class has all the required callbacks.
+        (We want to verify this statically, before feeding content to the
+        screen.)
+        """
+        for d in [self.basic, self.escape, self.sharp, self.percent, self.csi]:
+            for name in d.values():
+                assert hasattr(self.listener, name), 'Screen is missing %r' % name
 
     def feed(self, chars):
         """

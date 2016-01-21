@@ -10,7 +10,6 @@ Changes compared to the original `Screen` class:
 from __future__ import unicode_literals
 from collections import defaultdict, deque
 
-#from pygments.formatters.terminal256 import Terminal256Formatter
 from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
@@ -20,7 +19,6 @@ from prompt_toolkit.layout.screen import Screen, Char
 from prompt_toolkit.styles import Attrs
 from prompt_toolkit.terminal.vt100_output import FG_ANSI_COLORS, BG_ANSI_COLORS
 from prompt_toolkit.terminal.vt100_output import _256_colors as _256_colors_table
-from prompt_toolkit.token import Token
 from collections import namedtuple
 
 import copy
@@ -719,6 +717,15 @@ class BetterScreen(object):
         self.pt_screen.cursor_position.y += count or 1
         self.ensure_bounds(use_margins=True)
 
+    def cursor_down1(self, count=None):
+        """Moves cursor down the indicated # of lines to column 1.
+        Cursor stops at bottom margin.
+
+        :param int count: number of lines to skip.
+        """
+        self.cursor_down(count)
+        self.carriage_return()
+
     def cursor_up(self, count=None):
         """Moves cursor up the indicated # of lines in same column.
         Cursor stops at top margin.
@@ -727,6 +734,15 @@ class BetterScreen(object):
         """
         self.pt_screen.cursor_position.y -= count or 1
         self.ensure_bounds(use_margins=True)
+
+    def cursor_up1(self, count=None):
+        """Moves cursor up the indicated # of lines to column 1. Cursor
+        stops at bottom margin.
+
+        :param int count: number of lines to skip.
+        """
+        self.cursor_up(count)
+        self.carriage_return()
 
     def cursor_back(self, count=None):
         """Moves cursor left the indicated # of columns. Cursor stops
@@ -986,6 +1002,12 @@ class BetterScreen(object):
     def report_device_attributes(self, data):
         response = '\x1b[>84;0;0c'
         self.write_process_input(response)
+
+    def charset_default(self, *a, **kw):
+        " Not implemented. "
+
+    def  charset_utf8(self, *a, **kw):
+        " Not implemented. "
 
     def debug(self, *args, **kwargs):
         pass
