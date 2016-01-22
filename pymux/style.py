@@ -68,12 +68,12 @@ ui_style = {
 
 class PymuxStyle(Style):
     """
-    The styling. It includes the pygments style from above. But further, in
-    order to proxy all the output from the processes, it interprets all tokens
-    starting with ('C,) as tokens that describe their own style.
+    The styling. It includes the UI style from above. But further, in order to
+    proxy all the output from the processes, it interprets all tokens starting
+    with ('C,) as tokens that describe their own style.
     """
     def __init__(self):
-        self.pygments_style = style_from_dict(ui_style)
+        self.ui_style = style_from_dict(ui_style)
         self._token_to_attrs_dict = None
 
     def get_attrs_for_token(self, token):
@@ -82,8 +82,8 @@ class PymuxStyle(Style):
             c, fg, bg, bold, underline, italic, blink, reverse = token
             return Attrs(fg, bg, bold, underline, italic, blink, reverse)
         else:
-            # Take styles from Pygments style.
-            return self.pygments_style.get_attrs_for_token(token)
+            # Take styles from UI style.
+            return self.ui_style.get_attrs_for_token(token)
 
     def invalidation_hash(self):
         return None
