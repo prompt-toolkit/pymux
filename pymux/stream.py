@@ -58,10 +58,6 @@ class BetterStream(Stream):
         for c in chars:
             send(c)
 
-        # Call the '__after__' function, which is used to update the screen
-        # height.
-        self.listener.__after__(self)
-
     def _parser_generator(self):
         """
         Coroutine that processes VT100 output.

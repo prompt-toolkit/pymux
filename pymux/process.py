@@ -6,7 +6,6 @@ from __future__ import unicode_literals
 from prompt_toolkit.document import Document
 from prompt_toolkit.eventloop.base import EventLoop
 from prompt_toolkit.eventloop.posix_utils import PosixStdinReader
-from prompt_toolkit.token import Token
 from six.moves import range
 
 from .key_mappings import prompt_toolkit_key_to_vt100_key
@@ -348,9 +347,9 @@ class Process(object):
         Create a Document instance and token list that can be used in copy
         mode.
         """
-        data_buffer = self.screen.pt_screen.data_buffer
+        data_buffer = self.screen.data_buffer
         text = []
-        token_list = []
+        token_lists = []
 
         first_row = min(data_buffer.keys())
         last_row = max(data_buffer.keys())
@@ -362,8 +361,10 @@ class Process(object):
             except IndexError:
                 return True
 
-        for row_index in range(first_row, last_row + 1):
-            row = data_buffer[row_index]
+        for lineno in range(first_row, last_row + 1):
+            token_list = []
+
+            row = data_buffer[lineno]
             max_column = max(row.keys()) if row else 0
 
             # Remove trailing whitespace. (If the background is transparent.)
@@ -383,16 +384,19 @@ class Process(object):
 
                 # Skip next cell when this is a double width character.
                 if c.width == 2:
-                    next(char_iter)
+                    try:
+                        next(char_iter)
+                    except StopIteration:
+                        pass
 
-            # Add newline.
+            token_lists.append(token_list)
             text.append('\n')
-            token_list.append((Token, '\n'))
 
-        # Remove newlines at the end.
-        while text and text[-1] == '\n':
-            text.pop()
-            token_list.pop()
+        def get_tokens_for_line(lineno):
+            try:
+                return token_lists[lineno]
+            except IndexError:
+                return []
 
         # Calculate cursor position.
         d = Document(text=''.join(text))
@@ -400,7 +404,7 @@ class Process(object):
         return Document(text=d.text,
                         cursor_position=d.translate_row_col_to_index(
                             row=self.screen.pt_screen.cursor_position.y,
-                            col=self.screen.pt_screen.cursor_position.x)), token_list
+                            col=self.screen.pt_screen.cursor_position.x)), get_tokens_for_line
 
 
 def get_cwd_for_pid(pid):

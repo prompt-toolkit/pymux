@@ -66,9 +66,10 @@ class Pane(object):
         # Prompt_toolkit buffer, for displaying scrollable text.
         # (In copy mode, or help mode.)
         # Note: Because the scroll_buffer can only contain text, we also use the
-        #       copy_token_list, that contains a token list with color information.
+        #       get_tokens_for_line, that returns the token list with color
+        #       information for each line.
         self.scroll_buffer = Buffer(read_only=True)
-        self.copy_token_list = []
+        self.copy_get_tokens_for_line = lambda lineno: []
         self.display_scroll_buffer = False
         self.scroll_buffer_title = ''
 
@@ -98,24 +99,29 @@ class Pane(object):
         Suspend the process, and copy the screen content to the `scroll_buffer`.
         That way the user can search through the history and copy/paste.
         """
-        document, token_list = self.process.create_copy_document()
-        self._enter_scroll_buffer('Copy', document, token_list)
+        document, get_tokens_for_line = self.process.create_copy_document()
+        self._enter_scroll_buffer('Copy', document, get_tokens_for_line)
 
     def display_text(self, text, title=''):
         """
         Display the given text in the scroll buffer.
         """
+        document = Document(text, 0)
+
+        def get_tokens_for_line(lineno):
+            return [(Token, document.lines[lineno])]
+
         self._enter_scroll_buffer(
             title,
-            document=Document(text, 0),
-            token_list=[(Token, text)])
+            document=document,
+            get_tokens_for_line=get_tokens_for_line)
 
-    def _enter_scroll_buffer(self, title, document, token_list):
+    def _enter_scroll_buffer(self, title, document, get_tokens_for_line):
         # Suspend child process.
         self.process.suspend()
 
         self.scroll_buffer.set_document(document, bypass_readonly=True)
-        self.copy_token_list = token_list
+        self.copy_get_tokens_for_line = get_tokens_for_line
         self.display_scroll_buffer = True
         self.scroll_buffer_title = title
 

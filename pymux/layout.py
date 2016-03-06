@@ -5,18 +5,20 @@ The layout engine. This builds the prompt_toolkit layout.
 from __future__ import unicode_literals
 
 from prompt_toolkit.enums import IncrementalSearchDirection
-from prompt_toolkit.filters import Condition
+from prompt_toolkit.filters import Condition, to_cli_filter
 from prompt_toolkit.layout.containers import VSplit, HSplit, Window, FloatContainer, Float, ConditionalContainer, Container
-from prompt_toolkit.layout.controls import TokenListControl, FillControl, UIControl, BufferControl
+from prompt_toolkit.layout.controls import TokenListControl, FillControl, BufferControl
+from prompt_toolkit.layout.dimension import LayoutDimension
 from prompt_toolkit.layout.dimension import LayoutDimension as D
-from prompt_toolkit.layout.highlighters import SelectionHighlighter, SearchHighlighter
 from prompt_toolkit.layout.lexers import Lexer
 from prompt_toolkit.layout.lexers import SimpleLexer
 from prompt_toolkit.layout.menus import CompletionsMenu
-from prompt_toolkit.layout.processors import BeforeInput, AfterInput, AppendAutoSuggestion, Processor, Transformation
+from prompt_toolkit.layout.processors import BeforeInput, AfterInput, AppendAutoSuggestion, Processor, Transformation, HighlightSearchProcessor, HighlightSelectionProcessor
 from prompt_toolkit.layout.prompt import DefaultPrompt
-from prompt_toolkit.layout.screen import Char, Screen
+from prompt_toolkit.layout.screen import Char
+from prompt_toolkit.layout.screen import Point
 from prompt_toolkit.layout.toolbars import TokenListToolbar
+from prompt_toolkit.mouse_events import MouseEvent
 from prompt_toolkit.mouse_events import MouseEventTypes
 from prompt_toolkit.token import Token
 
@@ -61,7 +63,7 @@ class Background(Container):
     def preferred_width(self, cli, max_available_width):
         return D()
 
-    def preferred_height(self, cli, width):
+    def preferred_height(self, cli, width, max_available_height):
         return D()
 
     def write_to_screen(self, cli, screen, mouse_handlers, write_position):
@@ -92,16 +94,22 @@ _numbers = list(zip(*[  # (Transpose x/y.)
 ]))
 
 
-def _draw_number(screen, x_offset, number, token=Token.Clock, default_token=Token):
+def _draw_number(screen, x_offset, y_offset, number, token=Token.Clock,
+                 transparent=False):
     " Write number at position. "
+    fg = Char(' ', token)
+    bg = Char(' ', Token)
+
     for y, row in enumerate(_numbers[number]):
-        screen_row = screen.data_buffer[y]
+        screen_row = screen.data_buffer[y + y_offset]
         for x, n in enumerate(row):
-            t = token if n == '#' else default_token
-            screen_row[x + x_offset] = Char(' ', t)
+            if n == '#':
+                screen_row[x + x_offset] = fg
+            elif not transparent:
+                screen_row[x + x_offset] = bg
 
 
-class BigClock(UIControl):
+class BigClock(Container):
     """
     Display a big clock.
     """
@@ -112,47 +120,72 @@ class BigClock(UIControl):
         assert callable(on_click)
         self.on_click = on_click
 
-    def create_screen(self, cli, width, height):
-        screen = Screen(initial_width=width)
+    def reset(self):
+        pass
 
-        for y in range(self.HEIGHT):
-            for x in range(self.WIDTH):
-                screen.data_buffer[y][x] = Char(' ', Token)
+    def write_to_screen(self, cli, screen, mouse_handlers, write_position):
+        xpos = write_position.xpos
+        ypos = write_position.ypos
+
+        # Erase background.
+        bg = Char(' ', Token)
+
+        for y in range(ypos, self.HEIGHT + ypos):
+            row = screen.data_buffer[y]
+            for x in range(xpos, xpos + self.WIDTH):
+                row[x] = bg
 
         # Display time.
         now = datetime.datetime.now()
-        _draw_number(screen, 0, now.hour // 10)
-        _draw_number(screen, 6, now.hour % 10)
-        _draw_number(screen, 16, now.minute // 10)
-        _draw_number(screen, 23, now.minute % 10)
+        _draw_number(screen, xpos + 0, ypos, now.hour // 10)
+        _draw_number(screen, xpos + 6, ypos, now.hour % 10)
+        _draw_number(screen, xpos + 16, ypos, now.minute // 10)
+        _draw_number(screen, xpos + 23, ypos, now.minute % 10)
 
         # Add a colon
-        screen.data_buffer[1][13] = Char(' ', Token.Clock)
-        screen.data_buffer[3][13] = Char(' ', Token.Clock)
+        screen.data_buffer[ypos + 1][xpos + 13] = Char(' ', Token.Clock)
+        screen.data_buffer[ypos + 3][xpos + 13] = Char(' ', Token.Clock)
 
         screen.width = self.WIDTH
         screen.height = self.HEIGHT
-        return screen
 
-    def mouse_handler(self, cli, mouse_event):
+        mouse_handlers.set_mouse_handler_for_range(
+            x_min=xpos,
+            x_max=xpos + write_position.width,
+            y_min=ypos,
+            y_max=ypos + write_position.height,
+            handler=self._mouse_handler)
+
+    def _mouse_handler(self, cli, mouse_event):
         " Click callback. "
         if mouse_event.event_type == MouseEventTypes.MOUSE_UP:
             self.on_click(cli)
         else:
             return NotImplemented
 
+    def preferred_width(self, cli, max_available_width):
+        return D.exact(BigClock.WIDTH)
 
-class PaneNumber(UIControl):
+    def preferred_height(self, cli, width, max_available_height):
+        return D.exact(BigClock.HEIGHT)
+
+    def walk(self, cli):
+        yield self
+
+
+class PaneNumber(Container):
     """
     Number of panes, to be drawn in the middle of the pane.
     """
     WIDTH = 5
     HEIGHT = 5
 
-    def __init__(self, pymux, arrangement_pane, on_click):
+    def __init__(self, pymux, arrangement_pane):
         self.pymux = pymux
         self.arrangement_pane = arrangement_pane
-        self.on_click = on_click
+
+    def reset(self):
+        pass
 
     def _get_index(self, cli):
         window = self.pymux.arrangement.get_active_window(cli)
@@ -163,148 +196,23 @@ class PaneNumber(UIControl):
 
     def preferred_width(self, cli, max_available_width):
         # Enough to display all the digits.
-        return 6 * len('%s' % self._get_index(cli)) - 1
+        return LayoutDimension.exact(6 * len('%s' % self._get_index(cli)) - 1)
 
-    def preferred_height(self, cli, width):
-        return self.HEIGHT
+    def preferred_height(self, cli, width, max_available_height):
+        return LayoutDimension.exact(self.HEIGHT)
 
-    def create_screen(self, cli, width, height):
-        screen = Screen(initial_width=width)
-
+    def write_to_screen(self, cli, screen, mouse_handlers, write_position):
         if self.pymux.arrangement.get_active_pane(cli) == self.arrangement_pane:
             token = Token.PaneNumber.Focussed
         else:
             token = Token.PaneNumber
 
         for i, d in enumerate('%s' % (self._get_index(cli))):
-            _draw_number(screen, i * 6, int(d),
-                         token=token, default_token=Token.Transparent)
+            _draw_number(screen, write_position.xpos + i * 6, write_position.ypos,
+                         int(d), token=token, transparent=True)
 
-        return screen
-
-    def mouse_handler(self, cli, mouse_event):
-        " Click callback. "
-        if mouse_event.event_type == MouseEventTypes.MOUSE_UP:
-            self.on_click(cli)
-        else:
-            return NotImplemented
-
-
-class PaneControl(UIControl):
-    """
-    User control that takes the Screen from a pymux pane/process.
-    This also handles mouse support.
-    """
-    def __init__(self, pymux, pane):
-        self.pane = pane
-        self.process = pane.process
-        self.pymux = pymux
-
-    def create_screen(self, cli, width, height):
-        process = self.process
-        process.set_size(width, height)
-        return process.screen.pt_screen
-
-    def has_focus(self, cli):
-        return (cli.current_buffer_name != COMMAND and
-                self.pymux.arrangement.get_active_pane(cli) == self.pane)
-
-    def mouse_handler(self, cli, mouse_event):
-        """
-        Handle mouse events in a pane. A click in a non-active pane will select
-        it, one in an active pane, will send the mouse event to the application
-        running inside it.
-        """
-        process = self.process
-        x = mouse_event.position.x
-        y = mouse_event.position.y
-
-        # The containing Window translates coordinates to the absolute position
-        # of the whole screen, but in this case, we need the relative
-        # coordinates of the visible area.
-        y -= self.process.screen.line_offset
-
-        if not self.has_focus(cli):
-            # Focus this process when the mouse has been clicked.
-            if mouse_event.event_type == MouseEventTypes.MOUSE_UP:
-                self.pymux.arrangement.get_active_window(cli).active_pane = self.pane
-                self.pymux.invalidate()
-        else:
-            # Already focussed, send event to application when it requested
-            # mouse support.
-            if process.screen.sgr_mouse_support_enabled:
-                # Xterm SGR mode.
-                ev, m = {
-                    MouseEventTypes.MOUSE_DOWN: ('0', 'M'),
-                    MouseEventTypes.MOUSE_UP: ('0', 'm'),
-                    MouseEventTypes.SCROLL_UP: ('64', 'M'),
-                    MouseEventTypes.SCROLL_DOWN: ('65', 'M'),
-                }.get(mouse_event.event_type)
-
-                self.process.write_input(
-                    '\x1b[<%s;%s;%s%s' % (ev, x + 1, y + 1, m))
-
-            elif process.screen.urxvt_mouse_support_enabled:
-                # Urxvt mode.
-                ev = {
-                    MouseEventTypes.MOUSE_DOWN: 32,
-                    MouseEventTypes.MOUSE_UP: 35,
-                    MouseEventTypes.SCROLL_UP: 96,
-                    MouseEventTypes.SCROLL_DOWN: 97,
-                }.get(mouse_event.event_type)
-
-                self.process.write_input(
-                    '\x1b[%s;%s;%sM' % (ev, x + 1, y + 1))
-
-            elif process.screen.mouse_support_enabled:
-                # Fall back to old mode.
-                if x < 96 and y < 96:
-                    ev = {
-                            MouseEventTypes.MOUSE_DOWN: 32,
-                            MouseEventTypes.MOUSE_UP: 35,
-                            MouseEventTypes.SCROLL_UP: 96,
-                            MouseEventTypes.SCROLL_DOWN: 97,
-                    }.get(mouse_event.event_type)
-
-                    self.process.write_input('\x1b[M%s%s%s' % (
-                        six.unichr(ev),
-                        six.unichr(x + 33),
-                        six.unichr(y + 33)))
-
-
-class PaneWindow(Window):
-    """
-    The window around a :class:`.PaneControl`.
-    """
-    def __init__(self, pymux, arrangement_pane, process):
-        self._process = process
-        super(PaneWindow, self).__init__(
-            content=PaneControl(pymux, arrangement_pane),
-            get_vertical_scroll=lambda window: process.screen.line_offset,
-            allow_scroll_beyond_bottom=True,
-        )
-
-    def write_to_screen(self, cli, screen, mouse_handlers, write_position):
-        """
-        Override, in order to implement reverse video efficiently.
-        """
-        super(PaneWindow, self).write_to_screen(cli, screen, mouse_handlers, write_position)
-
-        # If reverse video is enabled for the whole screen.
-        if self._process.screen.has_reverse_video:
-            data_buffer = screen.data_buffer
-
-            for y in range(write_position.ypos, write_position.ypos + write_position.height):
-                row = data_buffer[y]
-
-                for x in range(write_position.xpos, write_position.xpos + write_position.width):
-                    char = row[x]
-                    token = list(char.token or DEFAULT_TOKEN)
-
-                    # The token looks like ('C', *attrs). Replace the value of the reverse flag.
-                    if token and token[0] == 'C':
-                        token[-1] = not token[-1]  # Invert reverse value.
-                        row[x] = Char(char.char, tuple(token))
+    def walk(self, cli):
+        yield self
 
 
 class SearchWindow(Window):
@@ -338,11 +246,14 @@ class SearchWindow(Window):
 
         class SearchLexer(Lexer):
             " Color for the search string. "
-            def get_tokens(self, cli, text):
-                if focussed(cli):
-                    return [(Token.Search.Focussed.Text, text)]
-                else:
-                    return [(Token.Search.Text, text)]
+            def lex_document(self, cli, document):
+                def get_line(lineno):
+                    text = document.lines[lineno]
+                    if focussed(cli):
+                        return [(Token.Search.Focussed.Text, text)]
+                    else:
+                        return [(Token.Search.Text, text)]
+                return get_line
 
         super(SearchWindow, self).__init__(
             content=BufferControl(
@@ -522,10 +433,10 @@ class LayoutManager(object):
                                 default_char=Char(' ', Token.CommandLine),
                                 lexer=SimpleLexer(Token.CommandLine),
                                 preview_search=True,
-                                highlighters=[SelectionHighlighter()],
                                 input_processors=[
                                     AppendAutoSuggestion(),
                                     DefaultPrompt(lambda cli:[(Token.CommandLine.Prompt, ':')]),
+                                    HighlightSelectionProcessor(),
                                 ])
                         ),
                         filter=in_command_mode,
@@ -538,10 +449,10 @@ class LayoutManager(object):
                                 buffer_name=PROMPT,
                                 default_char=Char(' ', Token.CommandLine),
                                 lexer=SimpleLexer(Token.CommandLine),
-                                highlighters=[SelectionHighlighter()],
                                 input_processors=[
                                     BeforeInput(self._before_prompt_command_tokens),
                                     AppendAutoSuggestion(),
+                                    HighlightSelectionProcessor(),
                                 ])
                         ),
                         filter=waits_for_prompt,
@@ -621,9 +532,9 @@ class DynamicBody(Container):
         body = self._get_body(cli)
         return body.preferred_width(cli, max_available_width)
 
-    def preferred_height(self, cli, width):
+    def preferred_height(self, cli, width, max_available_height):
         body = self._get_body(cli)
-        return body.preferred_height(cli, width)
+        return body.preferred_height(cli, width, max_available_height)
 
     def write_to_screen(self, cli, screen, mouse_handlers, write_position):
         body = self._get_body(cli)
@@ -737,8 +648,9 @@ class _UseCopyTokenListProcessor(Processor):
     def __init__(self, arrangement_pane):
         self.arrangement_pane = arrangement_pane
 
-    def apply_transformation(self, cli, document, tokens):
-        return Transformation(document, self.arrangement_pane.copy_token_list[:])
+    def apply_transformation(self, cli, document, lineno, source_to_display, tokens):
+        tokens = self.arrangement_pane.copy_get_tokens_for_line(lineno)
+        return Transformation(tokens[:])
 
     def invalidation_hash(self, cli, document):
         return document.text
@@ -801,6 +713,11 @@ def _create_container_for_process(pymux, arrangement_pane, zoom=False):
 
     def on_click(cli):
         " Click handler for the clock. When clicked, select this pane. "
+        arrangement_pane.clock_mode = False
+        pymux.arrangement.get_active_window(cli).active_pane = arrangement_pane
+        pymux.invalidate()
+
+    def set_focus(cli):
         pymux.arrangement.get_active_window(cli).active_pane = arrangement_pane
         pymux.invalidate()
 
@@ -829,28 +746,36 @@ def _create_container_for_process(pymux, arrangement_pane, zoom=False):
                 content=HSplit([
                     # The 'screen' of the pseudo terminal.
                     ConditionalContainer(
-                        content=PaneWindow(pymux, arrangement_pane, process),
+                        content=Vt100Window(
+                            process=process,
+                            has_focus=Condition(lambda cli: (
+                                cli.current_buffer_name != COMMAND and
+                                pymux.arrangement.get_active_pane(cli) == arrangement_pane)),
+                            set_focus=set_focus,
+                        ),
                         filter=~clock_is_visible & Condition(lambda cli: not arrangement_pane.display_scroll_buffer)),
 
                     # The copy/paste buffer.
                     ConditionalContainer(
                         content=Window(BufferControl(
                             buffer_name='pane-%i' % arrangement_pane.pane_id,
-                            wrap_lines=False,
                             focus_on_click=True,
                             default_char=Char(token=Token),
                             preview_search=True,
                             get_search_state=lambda cli: arrangement_pane.search_state,
                             search_buffer_name='search-%i' % arrangement_pane.pane_id,
-                            input_processors=[_UseCopyTokenListProcessor(arrangement_pane)],
-                            highlighters=[
-                                SearchHighlighter(
-                                   search_buffer_name='search-%i' % arrangement_pane.pane_id,
-                                   get_search_state=lambda cli: arrangement_pane.search_state,
-                                   preview_search=True),
-                                SelectionHighlighter(),
+                            input_processors=[
+                                _UseCopyTokenListProcessor(arrangement_pane),
+                                HighlightSearchProcessor(
+                                    search_buffer_name='search-%i' % arrangement_pane.pane_id,
+                                    get_search_state=lambda cli: arrangement_pane.search_state,
+                                    preview_search=True,
+                                ),
+                                HighlightSelectionProcessor(),
                             ],
-                        )),
+                        ),
+                            wrap_lines=False,
+                        ),
                         filter=~clock_is_visible & Condition(lambda cli: arrangement_pane.display_scroll_buffer)
                     ),
                     # Search toolbar. (Displayed when this pane has the focus, and searching.)
@@ -862,12 +787,12 @@ def _create_container_for_process(pymux, arrangement_pane, zoom=False):
                     ConditionalContainer(
                         # Add a dummy VSplit/HSplit around the BigClock in order to center it.
                         # (Using a FloatContainer to do the centering doesn't work well, because
-                        # the boundaries are not clipt when the parent is smaller.)
+                        # the boundaries are not clipped when the parent is smaller.)
                         content=VSplit([
                             Window(_FillControl(on_click)),
                             HSplit([
                                 Window(_FillControl(on_click)),
-                                Window(BigClock(on_click), height=D.exact(BigClock.HEIGHT)),
+                                BigClock(on_click),
                                 Window(_FillControl(on_click)),
                             ]),
                             Window(_FillControl(on_click)),
@@ -879,7 +804,7 @@ def _create_container_for_process(pymux, arrangement_pane, zoom=False):
                 # Pane numbers. (Centered.)
                 floats=[
                     Float(content=ConditionalContainer(
-                        content=Window(PaneNumber(pymux, arrangement_pane, on_click)),
+                        content=PaneNumber(pymux, arrangement_pane),
                         filter=pane_numbers_are_visible)),
                 ]
             )
@@ -912,8 +837,8 @@ class _ContainerProxy(Container):
     def preferred_width(self, cli, max_available_width):
         return self.content.preferred_width(cli, max_available_width)
 
-    def preferred_height(self, cli, width):
-        return self.content.preferred_height(cli, width)
+    def preferred_height(self, cli, width, max_available_height):
+        return self.content.preferred_height(cli, width, max_available_height)
 
     def write_to_screen(self, cli, screen, mouse_handlers, write_position):
         self.content.write_to_screen(cli, screen, mouse_handlers, write_position)
@@ -1111,3 +1036,188 @@ def _move_focus(pymux, cli, get_x, get_y):
                     wp.ypos <= y < wp.ypos + wp.height):
                 window.active_pane = pane
                 return
+
+
+class Vt100Window(Container):
+    """
+    Container that holds the VT100 control.
+    """
+    def __init__(self, process, has_focus, set_focus):
+        self.process = process
+        self.has_focus = to_cli_filter(has_focus)
+        self.set_focus = set_focus
+
+    def reset(self):
+        pass
+
+    def preferred_width(self, cli, max_available_width):
+        return LayoutDimension()
+
+    def preferred_height(self, cli, width, max_available_height):
+        return LayoutDimension()
+
+    def write_to_screen(self, cli, screen, mouse_handlers, write_position):
+        """
+        Write window to screen. This renders the user control, the margins and
+        copies everything over to the absolute position at the given screen.
+        """
+        # Set size of the screen.
+        self.process.set_size(write_position.width, write_position.height)
+
+        vertical_scroll = self.process.screen.line_offset
+
+        # Render UserControl.
+        temp_screen = self.process.screen.pt_screen
+
+        # Write body to screen.
+        self._copy_body(cli, temp_screen, screen, write_position, vertical_scroll,
+                        write_position.width)
+
+        # Set mouse handlers.
+        def mouse_handler(cli, mouse_event):
+            """ Wrapper around the mouse_handler of the `UIControl` that turns
+            absolute coordinates into relative coordinates. """
+            position = mouse_event.position
+
+            # Call the mouse handler of the UIControl first.
+            self._mouse_handler(
+                cli, MouseEvent(
+                    position=Point(x=position.x - write_position.xpos,
+                                   y=position.y - write_position.ypos + vertical_scroll),
+                    event_type=mouse_event.event_type))
+
+        mouse_handlers.set_mouse_handler_for_range(
+            x_min=write_position.xpos,
+            x_max=write_position.xpos + write_position.width,
+            y_min=write_position.ypos,
+            y_max=write_position.ypos + write_position.height,
+            handler=mouse_handler)
+
+        # If reverse video is enabled for the whole screen.
+        if self.process.screen.has_reverse_video:
+            data_buffer = screen.data_buffer
+
+            for y in range(write_position.ypos, write_position.ypos + write_position.height):
+                row = data_buffer[y]
+
+                for x in range(write_position.xpos, write_position.xpos + write_position.width):
+                    char = row[x]
+                    token = list(char.token or DEFAULT_TOKEN)
+
+                    # The token looks like ('C', *attrs). Replace the value of the reverse flag.
+                    if token and token[0] == 'C':
+                        token[-1] = not token[-1]  # Invert reverse value.
+                        row[x] = Char(char.char, tuple(token))
+
+    def _copy_body(self, cli, temp_screen, new_screen, write_position,
+                   vertical_scroll, width):
+        """
+        Copy characters from the temp screen that we got from the `UIControl`
+        to the real screen.
+        """
+        xpos = write_position.xpos
+        ypos = write_position.ypos
+        height = write_position.height
+
+        temp_buffer = temp_screen.data_buffer
+        new_buffer = new_screen.data_buffer
+        temp_screen_height = temp_screen.height
+
+        vertical_scroll = self.process.screen.line_offset
+        y = 0
+
+        # Now copy the region we need to the real screen.
+        for y in range(0, height):
+            # We keep local row variables. (Don't look up the row in the dict
+            # for each iteration of the nested loop.)
+            new_row = new_buffer[y + ypos]
+
+            if y >= temp_screen_height and y >= write_position.height:
+                # Break out of for loop when we pass after the last row of the
+                # temp screen. (We use the 'y' position for calculation of new
+                # screen's height.)
+                break
+            else:
+                temp_row = temp_buffer[y + vertical_scroll]
+
+                # Copy row content, except for transparent tokens.
+                # (This is useful in case of floats.)
+                for x in range(0, width):
+                    new_row[x + xpos] = temp_row[x]
+
+        if self.has_focus(cli):
+            new_screen.cursor_position = Point(
+                y=temp_screen.cursor_position.y + ypos - vertical_scroll,
+                x=temp_screen.cursor_position.x + xpos)
+
+            new_screen.show_cursor = temp_screen.show_cursor
+
+        # Update height of the output screen. (new_screen.write_data is not
+        # called, so the screen is not aware of its height.)
+        new_screen.height = max(new_screen.height, ypos + y + 1)
+
+    def _mouse_handler(self, cli, mouse_event):
+        """
+        Handle mouse events in a pane. A click in a non-active pane will select
+        it, one in an active pane, will send the mouse event to the application
+        running inside it.
+        """
+        process = self.process
+        x = mouse_event.position.x
+        y = mouse_event.position.y
+
+        # The containing Window translates coordinates to the absolute position
+        # of the whole screen, but in this case, we need the relative
+        # coordinates of the visible area.
+        y -= self.process.screen.line_offset
+
+        if not self.has_focus(cli):
+            # Focus this process when the mouse has been clicked.
+            if mouse_event.event_type == MouseEventTypes.MOUSE_UP:
+                self.set_focus(cli)
+        else:
+            # Already focussed, send event to application when it requested
+            # mouse support.
+            if process.screen.sgr_mouse_support_enabled:
+                # Xterm SGR mode.
+                ev, m = {
+                    MouseEventTypes.MOUSE_DOWN: ('0', 'M'),
+                    MouseEventTypes.MOUSE_UP: ('0', 'm'),
+                    MouseEventTypes.SCROLL_UP: ('64', 'M'),
+                    MouseEventTypes.SCROLL_DOWN: ('65', 'M'),
+                }.get(mouse_event.event_type)
+
+                self.process.write_input(
+                    '\x1b[<%s;%s;%s%s' % (ev, x + 1, y + 1, m))
+
+            elif process.screen.urxvt_mouse_support_enabled:
+                # Urxvt mode.
+                ev = {
+                    MouseEventTypes.MOUSE_DOWN: 32,
+                    MouseEventTypes.MOUSE_UP: 35,
+                    MouseEventTypes.SCROLL_UP: 96,
+                    MouseEventTypes.SCROLL_DOWN: 97,
+                }.get(mouse_event.event_type)
+
+                self.process.write_input(
+                    '\x1b[%s;%s;%sM' % (ev, x + 1, y + 1))
+
+            elif process.screen.mouse_support_enabled:
+                # Fall back to old mode.
+                if x < 96 and y < 96:
+                    ev = {
+                            MouseEventTypes.MOUSE_DOWN: 32,
+                            MouseEventTypes.MOUSE_UP: 35,
+                            MouseEventTypes.SCROLL_UP: 96,
+                            MouseEventTypes.SCROLL_DOWN: 97,
+                    }.get(mouse_event.event_type)
+
+                    self.process.write_input('\x1b[M%s%s%s' % (
+                        six.unichr(ev),
+                        six.unichr(x + 33),
+                        six.unichr(y + 33)))
+
+
+    def walk(self, cli):
+        # Only yield self. A window doesn't have children.
+        yield self

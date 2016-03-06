@@ -8,13 +8,14 @@ Changes compared to the original `Screen` class:
     - CPR support and device attributes.
 """
 from __future__ import unicode_literals
-from collections import defaultdict, deque
+from collections import defaultdict
 
 from pyte import charsets as cs
 from pyte import modes as mo
 from pyte.screens import Margins
 from six.moves import range
 
+from prompt_toolkit.cache import FastDictCache
 from prompt_toolkit.layout.screen import Screen, Char
 from prompt_toolkit.styles import Attrs
 from prompt_toolkit.terminal.vt100_output import FG_ANSI_COLORS, BG_ANSI_COLORS
@@ -42,34 +43,7 @@ class CursorPosition(object):
         return 'pymux.CursorPosition(x=%r, y=%r)' % (self.x, self.y)
 
 
-class Cache(dict):
-    """
-    Cache which keeps at most `size` items.
-    It will discard the oldest items in the cache first.
-
-    :param get_value: Callable that's called in case of a missing key.
-    """
-    def __init__(self, get_value, size=1000000):
-        assert callable(get_value)
-        assert isinstance(size, int)
-
-        self._keys = deque()
-        self.get_value = get_value
-        self.size = size
-
-    def __missing__(self, key):
-        # Remove old keys when the size is exceeded.
-        if len(self) > self.size:
-            key_to_remove = self._keys.popleft()
-            if key_to_remove in self:
-                del self[key_to_remove]
-
-        result = self.get_value(*key)
-        self[key] = result
-        return result
-
-
-_CHAR_CACHE = Cache(Char, size=1000 * 1000)
+_CHAR_CACHE = FastDictCache(Char, size=1000 * 1000)
 
 
 # Custom Savepoint that also stores the Attrs.
@@ -100,7 +74,6 @@ class BetterScreen(object):
         'g0_charset',
         'g1_charset',
         'tabstops',
-        'line_offset',
         'data_buffer',
         'max_y',
     ]
@@ -125,12 +98,6 @@ class BetterScreen(object):
         self.bell_func = bell_func
         self.get_history_limit = get_history_limit
         self.reset()
-
-    def __after__(self, ev):
-        pt_screen = self.pt_screen
-
-        pt_screen.height = max(
-            pt_screen.height, pt_screen.cursor_position.y + 2)
 
     @property
     def in_application_mode(self):
@@ -228,7 +195,6 @@ class BetterScreen(object):
 
         self.margins = Margins(0, self.lines - 1)
 
-        self.line_offset = 0  # Index of the line that's currently displayed on top.
         self.max_y = 0  # Max 'y' position to which is written.
 
     def resize(self, lines=None, columns=None):
@@ -237,14 +203,15 @@ class BetterScreen(object):
         columns = columns if columns is not None else self.columns
 
         if self.lines != lines or self.columns != columns:
-            # When the window gets bigger, make sure to make more content visible.
-            if lines > self.lines:
-                self.line_offset = max(0, self.line_offset - lines + self.lines)
-
             self.lines = lines
             self.columns = columns
 
             self._reset_offset_and_margins()
+
+    @property
+    def line_offset(self):
+        cpos_y = self.pt_screen.cursor_position.y
+        return max(0, min(cpos_y, self.max_y - self.lines + 1))
 
     def set_margins(self, top=None, bottom=None):
         """Selects top and bottom margins for the scrolling region.
@@ -282,12 +249,6 @@ class BetterScreen(object):
         visible.)
         """
         self.margins = Margins(0, self.lines - 1)
-
-        if self._in_alternate_screen:
-            self.line_offset = 0
-
-        elif self.data_buffer:
-            self.line_offset = max(0, self.max_y - self.lines + 1)
 
     def set_charset(self, code, mode):
         """Set active ``G0`` or ``G1`` charset.
@@ -438,7 +399,10 @@ class BetterScreen(object):
         #           way, we'll never know when to linefeed.
         cursor_position.x += char_width
 
-        self.max_y = max(self.max_y, cursor_position_y)
+        # Update max_y. (Don't use 'max()' for comparing only two values, that
+        # is less efficient.)
+        if cursor_position_y > self.max_y:
+            self.max_y = cursor_position_y
 
     def carriage_return(self):
         " Move the cursor to the beginning of the current line. "
@@ -452,8 +416,6 @@ class BetterScreen(object):
 
         # When scrolling over the full screen height -> keep history.
         if top == 0 and bottom >= self.lines - 1:
-            if self.pt_screen.cursor_position.y >= self.line_offset + self.lines - 1:
-                self.line_offset += 1
             self.cursor_down()
         else:
             if self.pt_screen.cursor_position.y - self.line_offset == bottom:
@@ -717,6 +679,8 @@ class BetterScreen(object):
         self.pt_screen.cursor_position.y += count or 1
         self.ensure_bounds(use_margins=True)
 
+        self.max_y = max(self.max_y, self.pt_screen.cursor_position.y)
+
     def cursor_down1(self, count=None):
         """Moves cursor down the indicated # of lines to column 1.
         Cursor stops at bottom margin.
@@ -836,7 +800,7 @@ class BetterScreen(object):
 
             # Reset line_offset.
             self.pt_screen.cursor_position.y -= self.line_offset
-            self.line_offset = 0
+#            self.line_offset = 0
         else:
             try:
                 interval = (
