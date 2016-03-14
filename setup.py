@@ -14,14 +14,14 @@ long_description = open(
 setup(
     name='pymux',
     author='Jonathan Slenders',
-    version='0.8',
+    version='0.9',
     license='LICENSE',
     url='https://github.com/jonathanslenders/',
     description='Pure Python terminal multiplexer.',
     long_description=long_description,
     packages=find_packages('.'),
     install_requires = [
-        'prompt_toolkit==0.59',
+        'prompt_toolkit==0.60',
         'pyte>=0.5.1',
         'six>=1.9.0',
         'docopt>=0.6.2',
