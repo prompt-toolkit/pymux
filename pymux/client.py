@@ -31,7 +31,7 @@ class Client(object):
         # Connect to socket.
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.connect(socket_name)
-        self.socket.setblocking(0)
+        self.socket.setblocking(1)
 
     def run_command(self, command, pane_id=None):
         """
@@ -144,14 +144,21 @@ class Client(object):
         with nonblocking(sys.stdin.fileno()):
             data = sys.stdin.read()
 
-        self._send_packet({
-            'cmd': 'in',
-            'data': data,
-        })
+        # Send input in chunks of 4k.
+        step = 4056
+        for i in range(0, len(data), step):
+            self._send_packet({
+                'cmd': 'in',
+                'data': data[i:i + step],
+            })
 
     def _send_packet(self, data):
         " Send to server. "
         data = json.dumps(data).encode('utf-8')
+
+        # Be sure that our socket is blocking, otherwise, the send() call could
+        # raise `BlockingIOError` if the buffer is full.
+        self.socket.setblocking(1)
 
         self.socket.send(data + b'\0')
 
