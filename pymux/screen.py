@@ -347,62 +347,75 @@ class BetterScreen(object):
         " Activates ``G1`` character set. "
         self.charset = 1
 
-    def draw(self, char):
+    def draw(self, chars):
         """
-        Draw a single character.
+        Draw characters.
+        `chars` is supposed to *not* contain any special characters.
+        No newlines or control codes.
         """
         # Aliases for variables that are used more than once in this function.
-        # For better performance. (This draw function is called for every
-        # printable character that a process outputs; it should be as
-        # performant as possible.)
+        # Local lookups are always faster.
+        # (This draw function is called for every printable character that a
+        # process outputs; it should be as performant as possible.)
         pt_screen = self.pt_screen
+        data_buffer = pt_screen.data_buffer
         cursor_position = pt_screen.cursor_position
         cursor_position_x = cursor_position.x
         cursor_position_y = cursor_position.y
 
+        in_irm = mo.IRM in self.mode
+        char_cache = _CHAR_CACHE
+        columns = self.columns
+
         # Translating a given character.
         if self.charset:
-            char = char.translate(self.g1_charset)
+            chars = chars.translate(self.g1_charset)
         else:
-            char = char.translate(self.g0_charset)
+            chars = chars.translate(self.g0_charset)
 
-        # Create 'Char' instance.
         token = ('C', ) + self._attrs
-        pt_char = _CHAR_CACHE[char, token]
-        char_width = pt_char.width
 
-        # If this was the last column in a line and auto wrap mode is
-        # enabled, move the cursor to the beginning of the next line,
-        # otherwise replace characters already displayed with newly
-        # entered.
-        if cursor_position_x >= self.columns:
-            if mo.DECAWM in self.mode:
-                self.carriage_return()
-                self.linefeed()
-            else:
-                cursor_position.x -= char_width
-                cursor_position_x = cursor_position.x
+        for char in chars:
+            # Create 'Char' instance.
+            pt_char = char_cache[char, token]
+            char_width = pt_char.width
 
-        # If Insert mode is set, new characters move old characters to
-        # the right, otherwise terminal is in Replace mode and new
-        # characters replace old characters at cursor position.
-        if mo.IRM in self.mode:
-            self.insert_characters(char_width)
+            # If this was the last column in a line and auto wrap mode is
+            # enabled, move the cursor to the beginning of the next line,
+            # otherwise replace characters already displayed with newly
+            # entered.
+            if cursor_position_x >= columns:
+                if mo.DECAWM in self.mode:
+                    self.carriage_return()
+                    self.linefeed()
 
-        row = pt_screen.data_buffer[cursor_position_y]
-        row[cursor_position_x] = pt_char
+                    cursor_position_x = pt_screen.cursor_position.x
+                    cursor_position_y = pt_screen.cursor_position.y
+                else:
+                    cursor_position_x -= char_width
 
-        if char_width > 1:
-            row[cursor_position_x + 1] = _CHAR_CACHE[' ', token]
+            # If Insert mode is set, new characters move old characters to
+            # the right, otherwise terminal is in Replace mode and new
+            # characters replace old characters at cursor position.
+            if in_irm:
+                self.insert_characters(char_width)
 
-        # .. note:: We can't use :meth:`cursor_forward()`, because that
-        #           way, we'll never know when to linefeed.
-        cursor_position.x += char_width
+            row = data_buffer[cursor_position_y]
+            row[cursor_position_x] = pt_char
+
+            if char_width > 1:
+                row[cursor_position_x + 1] = char_cache[' ', token]
+
+            # .. note:: We can't use :meth:`cursor_forward()`, because that
+            #           way, we'll never know when to linefeed.
+            cursor_position_x += char_width
 
         # Update max_y. (Don't use 'max()' for comparing only two values, that
         # is less efficient.)
         if cursor_position_y > self.max_y:
             self.max_y = cursor_position_y
+
+        cursor_position.x = cursor_position_x
 
     def carriage_return(self):
         " Move the cursor to the beginning of the current line. "
