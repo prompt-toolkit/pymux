@@ -427,7 +427,7 @@ if sys.platform in ('linux', 'linux2', 'cygwin'):
 
         try:
             with open('/proc/%s/cmdline' % pgrp, 'rb') as f:
-                return f.read().decode('utf-8', 'ignore').split('\0')[0]
+                return f.read().decode('utf-8', 'ignore').partition('\0')[0]
         except IOError:
             pass
 elif sys.platform == 'darwin':

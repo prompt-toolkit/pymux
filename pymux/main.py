@@ -466,7 +466,7 @@ class Pymux(object):
 
         # Set session_name according to socket name.
         if '.' in self.socket_name:
-            self.session_name = self.socket_name.rsplit('.')[-1]
+            self.session_name = self.socket_name.rpartition('.')[-1]
 
         logger.info('Listening on %r.' % self.socket_name)
         return self.socket_name
