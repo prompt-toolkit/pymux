@@ -37,13 +37,10 @@ class BetterStream(Stream):
 
         # Create a regular expression pattern that matches everything what can
         # be considered plain text. This can be used as a very simple lexer
-        # that can feed the "plain text part" as one token into the parser
-        # generator. (This is only a performance optimization, but for many
-        # inputs, it more than doubles the throughput.)
+        # that can feed the "plain text part" as one token into the screen.
         special = set([ctrl.ESC, ctrl.CSI, ctrl.NUL, ctrl.DEL]) | set(self.basic)
-        self._text_search = re.compile('^[^%s]*' % ''.join(re.escape(c) for c in special)).search
-            # Note: make sure that the regex above has a '*'. That way it
-            #       always matches and simplifies the code below.
+        self._text_search = re.compile(
+            '[^%s]+' % ''.join(re.escape(c) for c in special)).match
 
         # Start parser.
         self._parser = self._parser_generator()
@@ -65,22 +62,21 @@ class BetterStream(Stream):
         Custom, much more efficient 'feed' function.
         Feed a string of characters to the parser.
         """
-        # The most simple implementation of this function would look like this::
+        # The original implementation of this function looked like this::
         #
         #     for c in chars:
         #         self._send(c)
         #
-        # However, the implementation below does a big optimization if the
-        # parser is expecting a chunk of text. (When it is not inside a ESC or
-        # CSI escape sequence.) The 'send()' function returns True when the
-        # parser is in the state where it can possibly receive a chunk of plain
-        # text. We use a regular expression search to find the next chunk, and
-        # send that at once to the parser.
+        # However, the implementation below does a big optimization. If the
+        # parser is possibly expecting a chunk of text (when it is not inside a
+        # ESC or CSI escape sequence), then we send that fragment directly to
+        # the 'draw' method of the screen.
 
         # Local copy of functions. (For faster lookups.)
         send = self._send
         taking_plain_text = self._taking_plain_text
         text_search = self._text_search
+        draw = self.listener.draw
 
         # Loop through the chars.
         i = 0
@@ -89,13 +85,12 @@ class BetterStream(Stream):
         while i < count:
             # Reading plain text? Don't send characters one by one in the
             # generator, but optimize and send the whole chunk without
-            # escapes into it.
+            # escapes directly to the listener.
             if taking_plain_text:
-                chars = chars[i:]
-                count -= i
-                i = text_search(chars).end()
-                if i:
-                    taking_plain_text = send(chars[:i])
+                match = text_search(chars, i)
+                if match:
+                    start, i = match.span()
+                    draw(chars[start:i])
                 else:
                     taking_plain_text = False
 
@@ -124,7 +119,6 @@ class BetterStream(Stream):
         first.
         """
         listener = self.listener
-        draw = listener.draw
 
         basic = self.basic
         escape = self.escape
@@ -136,7 +130,6 @@ class BetterStream(Stream):
         CSI = ctrl.CSI
         CTRL_SEQUENCES_ALLOWED_IN_CSI = set([
             ctrl.BEL, ctrl.BS, ctrl.HT, ctrl.LF, ctrl.VT, ctrl.FF, ctrl.CR])
-        NOT_DRAW = set([ESC, CSI, ctrl.NUL, ctrl.DEL]) | set(basic)
 
         def create_dispatch_dictionary(source_dict):
             # In order to avoid getting KeyError exceptions below, we make sure
@@ -156,14 +149,8 @@ class BetterStream(Stream):
 
         while True:
             char = yield True  # (`True` tells the 'send()' function that it
-                               # can also send a chunk of plain text, without
-                               # escapes.)
-
-            # Handle normal draw operations first. (All overhead here is the
-            # most expensive.)
-            while char not in NOT_DRAW:
-                draw(char)
-                char = yield
+                               # is allowed to send chunks of plain text
+                               # directly to the listener, instead of this generator.)
 
             if char == ESC:  # \x1b
                 char = yield
