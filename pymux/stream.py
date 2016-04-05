@@ -126,13 +126,11 @@ class BetterStream(Stream):
         listener = self.listener
         draw = listener.draw
 
-        # In order to avoid getting KeyError exceptions below, we make sure that
-        # these dictionaries resolve to 'Screen.dummy'
-        basic = defaultdict(lambda: 'dummy', self.basic)
-        escape = defaultdict(lambda: 'dummy', self.escape)
-        sharp = defaultdict(lambda: 'dummy', self.sharp)
-        percent = defaultdict(lambda: 'dummy', self.percent)
-        csi = defaultdict(lambda: 'dummy', self.csi)
+        basic = self.basic
+        escape = self.escape
+        sharp = self.sharp
+        percent = self.percent
+        csi = self.csi
 
         ESC = ctrl.ESC
         CSI = ctrl.CSI
@@ -140,8 +138,21 @@ class BetterStream(Stream):
             ctrl.BEL, ctrl.BS, ctrl.HT, ctrl.LF, ctrl.VT, ctrl.FF, ctrl.CR])
         NOT_DRAW = set([ESC, CSI, ctrl.NUL, ctrl.DEL]) | set(basic)
 
-        def dispatch(event, *args, **flags):
-            getattr(listener, event)(*args, **flags)
+        def create_dispatch_dictionary(source_dict):
+            # In order to avoid getting KeyError exceptions below, we make sure
+            # that these dictionaries have a dummy handler.
+            def dummy(*a, **kw):
+                pass
+
+            return defaultdict(
+                lambda: dummy,
+                {event: getattr(listener, attr) for event, attr in source_dict.items()})
+
+        basic_dispatch = create_dispatch_dictionary(basic)
+        sharp_dispatch = create_dispatch_dictionary(sharp)
+        percent_dispatch = create_dispatch_dictionary(percent)
+        escape_dispatch = create_dispatch_dictionary(escape)
+        csi_dispatch = create_dispatch_dictionary(csi)
 
         while True:
             char = yield True  # (`True` tells the 'send()' function that it
@@ -161,9 +172,9 @@ class BetterStream(Stream):
                     char = CSI  # Go to CSI.
                 else:
                     if char == '#':
-                        dispatch(sharp[(yield)])
+                        sharp_dispatch[(yield)]()
                     elif char == '%':
-                        dispatch(percent[(yield)])
+                        percent_dispatch[(yield)]()
                     elif char in '()':
                         listener.set_charset((yield), mode=char)
                     elif char == ']':
@@ -176,13 +187,13 @@ class BetterStream(Stream):
                                 data.append(c)
                         listener.square_close(''.join(data))
                     else:
-                        dispatch(escape[char])
+                        escape_dispatch[char]()
                     continue  # Do not go to CSI.
 
             if char in basic:  # 'if', not 'elif', because we need to be
                                # able to jump here from Esc[ above in the CSI
                                # section below.
-                dispatch(basic[char])
+                basic_dispatch[char]()
 
             elif char == CSI:  # \x9b
                 current = ''
@@ -194,7 +205,7 @@ class BetterStream(Stream):
                     if char == '?':
                         private = True
                     elif char in CTRL_SEQUENCES_ALLOWED_IN_CSI:
-                        dispatch(basic[char])
+                        basic_dispatch[char]()
                     elif char in (ctrl.SP, '>'):
                         # Ignore '>' because of 'ESC[>c' (Send device attributes.)
                         pass
@@ -208,9 +219,9 @@ class BetterStream(Stream):
                         else:
                             try:
                                 if private:
-                                    dispatch(csi[char], *params, private=True)
+                                    csi_dispatch[char](*params, private=True)
                                 else:
-                                    dispatch(csi[char], *params)
+                                    csi_dispatch[char](*params)
                             except TypeError:
                                 # Handler doesn't take params or private attribute.
                                 # (Not the cleanest way to handle this, but

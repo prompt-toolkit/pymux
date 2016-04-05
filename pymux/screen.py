@@ -439,11 +439,15 @@ class BetterScreen(object):
         if top == 0 and bottom >= self.lines - 1:
             self.cursor_down()
         else:
-            if self.pt_screen.cursor_position.y - self.line_offset == bottom:
+            line_offset = self.line_offset
+
+            if self.pt_screen.cursor_position.y - line_offset == bottom:
+                data_buffer = self.data_buffer
+
                 for line in range(top, bottom):
-                    self.data_buffer[line + self.line_offset] = \
-                        self.data_buffer[line + self.line_offset + 1]
-                    del self.data_buffer[line + self.line_offset + 1]
+                    data_buffer[line + line_offset] = \
+                        data_buffer[line + line_offset + 1]
+                    del data_buffer[line + line_offset + 1]
             else:
                 self.cursor_down()
 
@@ -492,7 +496,8 @@ class BetterScreen(object):
         if mo.LNM in self.mode:
             self.carriage_return()
 
-        self.ensure_bounds()
+        # Calling `ensure_bounds` here is not required, It is already called in
+        # index -> cursor_down.
 
     def next_line(self):
         """ When `EscE` has been received. Go to the next line, even when LNM has
@@ -697,10 +702,12 @@ class BetterScreen(object):
 
         :param int count: number of lines to skip.
         """
-        self.pt_screen.cursor_position.y += count or 1
+        cursor_position = self.pt_screen.cursor_position
+
+        cursor_position.y += count or 1
         self.ensure_bounds(use_margins=True)
 
-        self.max_y = max(self.max_y, self.pt_screen.cursor_position.y)
+        self.max_y = max(self.max_y, cursor_position.y)
 
     def cursor_down1(self, count=None):
         """Moves cursor down the indicated # of lines to column 1.
@@ -814,31 +821,34 @@ class BetterScreen(object):
         :param bool private: when ``True`` character attributes aren left
                              unchanged **not implemented**.
         """
+        line_offset = self.line_offset
+
         if type_of == 3:
             # Clear data buffer.
             for y in list(self.data_buffer):
                 del self.data_buffer[y]
 
             # Reset line_offset.
-            self.pt_screen.cursor_position.y -= self.line_offset
+            self.pt_screen.cursor_position.y -= line_offset
 #            self.line_offset = 0
         else:
             try:
                 interval = (
                     # a) erase from cursor to the end of the display, including
                     # the cursor,
-                    range(self.pt_screen.cursor_position.y + 1, self.line_offset + self.lines),
+                    range(self.pt_screen.cursor_position.y + 1, line_offset + self.lines),
                     # b) erase from the beginning of the display to the cursor,
                     # including it,
-                    range(self.line_offset, self.pt_screen.cursor_position.y),
+                    range(line_offset, self.pt_screen.cursor_position.y),
                     # c) erase the whole display.
-                    range(self.line_offset, self.line_offset + self.lines)
+                    range(line_offset, line_offset + self.lines)
                 )[type_of]
             except IndexError:
                 return
 
+            data_buffer = self.data_buffer
             for line in interval:
-                self.data_buffer[line] = defaultdict(lambda: Char(' '))
+                data_buffer[line] = defaultdict(lambda: Char(' '))
 
             # In case of 0 or 1 we have to erase the line with the cursor.
             if type_of in [0, 1]:
@@ -876,10 +886,11 @@ class BetterScreen(object):
             top, bottom = 0, self.lines - 1
 
         cursor_position = self.pt_screen.cursor_position
+        line_offset = self.line_offset
 
         cursor_position.x = min(max(0, cursor_position.x), self.columns - 1)
-        cursor_position.y = min(max(top + self.line_offset, cursor_position.y),
-                                bottom + self.line_offset + 1)
+        cursor_position.y = min(max(top + line_offset, cursor_position.y),
+                                bottom + line_offset + 1)
 
     def alignment_display(self):
         for y in range(0, self.lines):
