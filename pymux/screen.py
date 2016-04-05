@@ -22,8 +22,6 @@ from prompt_toolkit.terminal.vt100_output import FG_ANSI_COLORS, BG_ANSI_COLORS
 from prompt_toolkit.terminal.vt100_output import _256_colors as _256_colors_table
 from collections import namedtuple
 
-import copy
-
 __all__ = (
     'BetterScreen',
     'DEFAULT_TOKEN',
@@ -48,7 +46,8 @@ _CHAR_CACHE = FastDictCache(Char, size=1000 * 1000)
 
 # Custom Savepoint that also stores the Attrs.
 _Savepoint = namedtuple("_Savepoint", [
-    'cursor',
+    'cursor_x',
+    'cursor_y',
     'g0_charset',
     'g1_charset',
     'charset',
@@ -75,6 +74,7 @@ class BetterScreen(object):
         'g1_charset',
         'tabstops',
         'data_buffer',
+        'pt_cursor_position',
         'max_y',
     ]
 
@@ -189,11 +189,12 @@ class BetterScreen(object):
         self.pt_screen.show_cursor = True
 
         self.data_buffer = self.pt_screen.data_buffer
+        self.pt_cursor_position = self.pt_screen.cursor_position
 
         self._attrs = Attrs(color=None, bgcolor=None, bold=False,
                             underline=False, italic=False, blink=False, reverse=False)
 
-        self.margins = Margins(0, self.lines - 1)
+        self.margins = None
 
         self.max_y = 0  # Max 'y' position to which is written.
 
@@ -214,11 +215,11 @@ class BetterScreen(object):
             # the height will keep the cursor at the top, hiding some content.)
             self.max_y = min(
                 self.max_y,
-                self.pt_screen.cursor_position.y + lines - 1)
+                self.pt_cursor_position.y + lines - 1)
 
     @property
     def line_offset(self):
-        cpos_y = self.pt_screen.cursor_position.y
+        cpos_y = self.pt_cursor_position.y
         return max(0, min(cpos_y, self.max_y - self.lines + 1))
 
     def set_margins(self, top=None, bottom=None):
@@ -232,8 +233,10 @@ class BetterScreen(object):
         if top is None and bottom is None:
             return
 
-        top = self.margins.top if top is None else top - 1
-        bottom = self.margins.bottom if bottom is None else bottom - 1
+        margins = self.margins or Margins(0, self.lines - 1)
+
+        top = margins.top if top is None else top - 1
+        bottom = margins.bottom if bottom is None else bottom - 1
 
         # Arguments are 1-based, while :attr:`margins` are zero based --
         # so we have to decrement them by one. We also make sure that
@@ -256,7 +259,7 @@ class BetterScreen(object):
         Recalculate offset and move cursor (make sure that the bottom is
         visible.)
         """
-        self.margins = Margins(0, self.lines - 1)
+        self.margins = None
 
     def set_charset(self, code, mode):
         """Set active ``G0`` or ``G1`` charset.
@@ -427,21 +430,32 @@ class BetterScreen(object):
 
     def carriage_return(self):
         " Move the cursor to the beginning of the current line. "
-        self.pt_screen.cursor_position.x = 0
+        self.pt_cursor_position.x = 0
 
     def index(self):
         """Move the cursor down one line in the same column. If the
         cursor is at the last line, create a new line at the bottom.
         """
-        top, bottom = self.margins
+        margins = self.margins
 
         # When scrolling over the full screen height -> keep history.
-        if top == 0 and bottom >= self.lines - 1:
-            self.cursor_down()
+        if margins is None:
+            # Simply move the cursor one position down.
+            cursor_position = self.pt_cursor_position
+            cursor_position.y += 1
+            self.max_y = max(self.max_y, cursor_position.y)
+
+            # Cleanup the history, but only every 100 calls.
+            self._history_cleanup_counter += 1
+            if self._history_cleanup_counter == 100:
+                self._remove_old_lines_from_history()
+                self._history_cleanup_counter = 0
         else:
+            # Move cursor down, but scroll in the scrolling region.
+            top, bottom = self.margins
             line_offset = self.line_offset
 
-            if self.pt_screen.cursor_position.y - line_offset == bottom:
+            if self.pt_cursor_position.y - line_offset == bottom:
                 data_buffer = self.data_buffer
 
                 for line in range(top, bottom):
@@ -451,17 +465,11 @@ class BetterScreen(object):
             else:
                 self.cursor_down()
 
-        # Cleanup the history, but only every 100 calls.
-        self._history_cleanup_counter += 1
-        if self._history_cleanup_counter == 100:
-            self._remove_old_lines_from_history()
-            self._history_cleanup_counter = 0
-
     def _remove_old_lines_from_history(self):
         """
         Remove top from the scroll buffer. (Outside bounds of history limit.)
         """
-        remove_above = max(0, self.pt_screen.cursor_position.y - self.get_history_limit())
+        remove_above = max(0, self.pt_cursor_position.y - self.get_history_limit())
         data_buffer = self.pt_screen.data_buffer
         for line in list(data_buffer):
             if line < remove_above:
@@ -476,11 +484,12 @@ class BetterScreen(object):
                 del self.data_buffer[line]
 
     def reverse_index(self):
-        top, bottom = self.margins
+        margins = self.margins or Margins(0, self.lines - 1)
+        top, bottom = margins
         line_offset = self.line_offset
 
         # When scrolling over the full screen -> keep history.
-        if self.pt_screen.cursor_position.y - line_offset == top:
+        if self.pt_cursor_position.y - line_offset == top:
             for i in range(bottom - 1, top - 1, -1):
                 self.data_buffer[i + line_offset + 1] = self.data_buffer[i + line_offset]
                 del self.data_buffer[i + line_offset]
@@ -496,9 +505,6 @@ class BetterScreen(object):
         if mo.LNM in self.mode:
             self.carriage_return()
 
-        # Calling `ensure_bounds` here is not required, It is already called in
-        # index -> cursor_down.
-
     def next_line(self):
         """ When `EscE` has been received. Go to the next line, even when LNM has
         not been set. """
@@ -511,13 +517,13 @@ class BetterScreen(object):
         aren't anymore left.
         """
         for stop in sorted(self.tabstops):
-            if self.pt_screen.cursor_position.x < stop:
+            if self.pt_cursor_position.x < stop:
                 column = stop
                 break
         else:
             column = self.columns - 1
 
-        self.pt_screen.cursor_position.x = column
+        self.pt_cursor_position.x = column
 
     def backspace(self):
         """Move cursor to the left one or keep it in it's position if
@@ -528,7 +534,8 @@ class BetterScreen(object):
     def save_cursor(self):
         """Push the current cursor position onto the stack."""
         self.savepoints.append(_Savepoint(
-            copy.copy(self.pt_screen.cursor_position),
+            self.pt_cursor_position.x,
+            self.pt_cursor_position.y,
             self.g0_charset,
             self.g1_charset,
             self.charset,
@@ -553,7 +560,8 @@ class BetterScreen(object):
             if savepoint.wrap:
                 self.set_mode(mo.DECAWM)
 
-            self.pt_screen.cursor_position = savepoint.cursor
+            self.pt_cursor_position.x = savepoint.cursor_x
+            self.pt_cursor_position.y = savepoint.cursor_y
             self.ensure_bounds(use_margins=True)
         else:
             # If nothing was saved, the cursor moves to home position;
@@ -571,18 +579,22 @@ class BetterScreen(object):
         count = count or 1
         top, bottom = self.margins
 
+        data_buffer = self.data_buffer
+        line_offset = self.line_offset
+        pt_cursor_position = self.pt_cursor_position
+
         # If cursor is outside scrolling margins it -- do nothing.
-        if top <= self.pt_screen.cursor_position.y - self.line_offset <= bottom:
-            for line in range(bottom, self.pt_screen.cursor_position.y - self.line_offset, -1):
+        if top <= pt_cursor_position.y - self.line_offset <= bottom:
+            for line in range(bottom, pt_cursor_position.y - line_offset, -1):
                 if line - count < top:
                     try:
-                        del self.data_buffer[line + self.line_offset]
+                        del data_buffer[line + line_offset]
                     except KeyError:
                         pass
                 else:
-                    self.data_buffer[line + self.line_offset] = self.data_buffer[line + self.line_offset - count]
+                    data_buffer[line + line_offset] = data_buffer[line + line_offset - count]
                     try:
-                        del self.data_buffer[line + self.line_offset - count]
+                        del data_buffer[line + line_offset - count]
                     except KeyError:
                         pass
 
@@ -598,20 +610,23 @@ class BetterScreen(object):
         """
         count = count or 1
         top, bottom = self.margins
+        line_offset = self.line_offset
+        pt_cursor_position = self.pt_cursor_position
 
         # If cursor is outside scrolling margins it -- do nothin'.
-        if top <= self.pt_screen.cursor_position.y - self.line_offset <= bottom:
-            # Iterate from the cursor Y position until the end of the visible input.
-            for line in range(self.pt_screen.cursor_position.y - self.line_offset, bottom + 1):
+        if top <= pt_cursor_position.y - line_offset <= bottom:
+            data_buffer = self.data_buffer
 
+            # Iterate from the cursor Y position until the end of the visible input.
+            for line in range(pt_cursor_position.y - line_offset, bottom + 1):
                 # When 'x' lines further are out of the margins, replace by an empty line,
                 # Otherwise copy the line from there.
                 if line + count > bottom:
-                    del self.data_buffer[line + self.line_offset]
+                    del data_buffer[line + line_offset]
                 else:
-                    self.data_buffer[line + self.line_offset] = self.data_buffer[line + count + self.line_offset]
+                    data_buffer[line + line_offset] = self.data_buffer[line + count + line_offset]
 
-    def insert_characters(self, count=None):  # XXX: used by pressing space in bash vi mode
+    def insert_characters(self, count=None):
         """Inserts the indicated # of blank characters at the cursor
         position. The cursor does not move and remains at the beginning
         of the inserted blank characters. Data on the line is shifted
@@ -621,23 +636,23 @@ class BetterScreen(object):
         """
         count = count or 1
 
-        line = self.data_buffer[self.pt_screen.cursor_position.y]
+        line = self.data_buffer[self.pt_cursor_position.y]
 
         if line:
             max_columns = max(line.keys())
 
-            for i in range(max_columns, self.pt_screen.cursor_position.x - 1, -1):
+            for i in range(max_columns, self.pt_cursor_position.x - 1, -1):
                 line[i + count] = line[i]
                 del line[i]
 
     def delete_characters(self, count=None):
         count = count or 1
 
-        line = self.data_buffer[self.pt_screen.cursor_position.y]
+        line = self.data_buffer[self.pt_cursor_position.y]
         if line:
             max_columns = max(line.keys())
 
-            for i in range(self.pt_screen.cursor_position.x, max_columns + 1):
+            for i in range(self.pt_cursor_position.x, max_columns + 1):
                 line[i] = line[i + count]
                 del line[i + count]
 
@@ -656,15 +671,17 @@ class BetterScreen(object):
 
         # If origin mode (DECOM) is set, line number are relative to
         # the top scrolling margin.
-        if mo.DECOM in self.mode:
-            line += self.margins.top
+        margins = self.margins
+
+        if margins is not None and mo.DECOM in self.mode:
+            line += margins.top
 
             # Cursor is not allowed to move out of the scrolling region.
-            if not (self.margins.top <= line <= self.margins.bottom):
+            if not (margins.top <= line <= margins.bottom):
                 return
 
-        self.pt_screen.cursor_position.x = column
-        self.pt_screen.cursor_position.y = line + self.line_offset
+        self.pt_cursor_position.x = column
+        self.pt_cursor_position.y = line + self.line_offset
         self.ensure_bounds()
 
     def cursor_to_column(self, column=None):
@@ -672,7 +689,7 @@ class BetterScreen(object):
 
         :param int column: column number to move the cursor to.
         """
-        self.pt_screen.cursor_position.x = (column or 1) - 1
+        self.pt_cursor_position.x = (column or 1) - 1
         self.ensure_bounds()
 
     def cursor_to_line(self, line=None):
@@ -680,12 +697,14 @@ class BetterScreen(object):
 
         :param int line: line number to move the cursor to.
         """
-        self.pt_screen.cursor_position.y = (line or 1) - 1 + self.line_offset
+        self.pt_cursor_position.y = (line or 1) - 1 + self.line_offset
 
         # If origin mode (DECOM) is set, line number are relative to
         # the top scrolling margin.
-        if mo.DECOM in self.mode:
-            self.pt_screen.cursor_position.y += self.margins.top
+        margins = self.margins
+
+        if mo.DECOM in self.mode and margins is not None:
+            self.pt_cursor_position.y += margins.top
 
             # FIXME: should we also restrict the cursor to the scrolling
             # region?
@@ -702,10 +721,14 @@ class BetterScreen(object):
 
         :param int count: number of lines to skip.
         """
-        cursor_position = self.pt_screen.cursor_position
+        cursor_position = self.pt_cursor_position
+        margins = self.margins or Margins(0, self.lines - 1)
 
-        cursor_position.y += count or 1
-        self.ensure_bounds(use_margins=True)
+        # Ensure bounds.
+        # (Following code is faster than calling `self.ensure_bounds`.)
+        _, bottom = margins
+        cursor_position.y = min(cursor_position.y + (count or 1),
+                                bottom + self.line_offset + 1)
 
         self.max_y = max(self.max_y, cursor_position.y)
 
@@ -724,7 +747,7 @@ class BetterScreen(object):
 
         :param int count: number of lines to skip.
         """
-        self.pt_screen.cursor_position.y -= count or 1
+        self.pt_cursor_position.y -= count or 1
         self.ensure_bounds(use_margins=True)
 
     def cursor_up1(self, count=None):
@@ -742,8 +765,8 @@ class BetterScreen(object):
 
         :param int count: number of columns to skip.
         """
-        self.pt_screen.cursor_position.x = max(
-            0, self.pt_screen.cursor_position.x - (count or 1))
+        self.pt_cursor_position.x = max(
+            0, self.pt_cursor_position.x - (count or 1))
         self.ensure_bounds()
 
     def cursor_forward(self, count=None):
@@ -752,7 +775,7 @@ class BetterScreen(object):
 
         :param int count: number of columns to skip.
         """
-        self.pt_screen.cursor_position.x += count or 1
+        self.pt_cursor_position.x += count or 1
         self.ensure_bounds()
 
     def erase_characters(self, count=None):
@@ -770,7 +793,7 @@ class BetterScreen(object):
            too all ``erase_*()`` and ``delete_*()`` methods.
         """
         count = count or 1
-        cursor_position = self.pt_screen.cursor_position
+        cursor_position = self.pt_cursor_position
         row = self.data_buffer[cursor_position.y]
 
         for column in range(cursor_position.x,
@@ -790,17 +813,20 @@ class BetterScreen(object):
         :param bool private: when ``True`` character attributes aren left
                              unchanged **not implemented**.
         """
+        data_buffer = self.data_buffer
+        pt_cursor_position = self.pt_cursor_position
+
         if type_of == 2:
             # Delete line completely.
-            del self.data_buffer[self.pt_screen.cursor_position.y]
+            del data_buffer[pt_cursor_position.y]
         else:
-            line = self.data_buffer[self.pt_screen.cursor_position.y]
+            line = data_buffer[pt_cursor_position.y]
 
             def should_we_delete(column):  # TODO: check for off-by-one errors!
                 if type_of == 0:
-                    return column >= self.pt_screen.cursor_position.x
+                    return column >= pt_cursor_position.x
                 if type_of == 1:
-                    return column <= self.pt_screen.cursor_position.x
+                    return column <= pt_cursor_position.x
 
             for column in list(line.keys()):
                 if should_we_delete(column):
@@ -822,6 +848,7 @@ class BetterScreen(object):
                              unchanged **not implemented**.
         """
         line_offset = self.line_offset
+        pt_cursor_position = self.pt_cursor_position
 
         if type_of == 3:
             # Clear data buffer.
@@ -829,17 +856,17 @@ class BetterScreen(object):
                 del self.data_buffer[y]
 
             # Reset line_offset.
-            self.pt_screen.cursor_position.y -= line_offset
+            pt_cursor_position.y -= line_offset
 #            self.line_offset = 0
         else:
             try:
                 interval = (
                     # a) erase from cursor to the end of the display, including
                     # the cursor,
-                    range(self.pt_screen.cursor_position.y + 1, line_offset + self.lines),
+                    range(pt_cursor_position.y + 1, line_offset + self.lines),
                     # b) erase from the beginning of the display to the cursor,
                     # including it,
-                    range(line_offset, self.pt_screen.cursor_position.y),
+                    range(line_offset, pt_cursor_position.y),
                     # c) erase the whole display.
                     range(line_offset, line_offset + self.lines)
                 )[type_of]
@@ -856,7 +883,7 @@ class BetterScreen(object):
 
     def set_tab_stop(self):
         " Set a horizontal tab stop at cursor position. "
-        self.tabstops.add(self.pt_screen.cursor_position.x)
+        self.tabstops.add(self.pt_cursor_position.x)
 
     def clear_tab_stop(self, type_of=None):
         """Clears a horizontal tab stop in a specific way, depending
@@ -868,7 +895,7 @@ class BetterScreen(object):
         if not type_of:
             # Clears a horizontal tab stop at cursor position, if it's
             # present, or silently fails if otherwise.
-            self.tabstops.discard(self.pt_screen.cursor_position.x)
+            self.tabstops.discard(self.pt_cursor_position.x)
         elif type_of == 3:
             self.tabstops = set()  # Clears all horizontal tab stops.
 
@@ -880,12 +907,13 @@ class BetterScreen(object):
                                  cursor is bounded by top and and bottom
                                  margins, instead of ``[0; lines - 1]``.
         """
-        if use_margins or mo.DECOM in self.mode:
-            top, bottom = self.margins
+        margins = self.margins
+        if margins and use_margins or mo.DECOM in self.mode:
+            top, bottom = margins
         else:
             top, bottom = 0, self.lines - 1
 
-        cursor_position = self.pt_screen.cursor_position
+        cursor_position = self.pt_cursor_position
         line_offset = self.line_offset
 
         cursor_position.x = min(max(0, cursor_position.x), self.columns - 1)
@@ -989,8 +1017,8 @@ class BetterScreen(object):
         Report cursor position.
         """
         if data == 6:
-            y = self.pt_screen.cursor_position.y - self.line_offset + 1
-            x = self.pt_screen.cursor_position.x + 1
+            y = self.pt_cursor_position.y - self.line_offset + 1
+            x = self.pt_cursor_position.x + 1
 
             response = '\x1b[%i;%iR' % (y, x)
             self.write_process_input(response)
@@ -1002,11 +1030,8 @@ class BetterScreen(object):
     def charset_default(self, *a, **kw):
         " Not implemented. "
 
-    def  charset_utf8(self, *a, **kw):
+    def charset_utf8(self, *a, **kw):
         " Not implemented. "
 
     def debug(self, *args, **kwargs):
-        pass
-
-    def dummy(self, *a, **kw):
         pass
