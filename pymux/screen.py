@@ -856,8 +856,8 @@ class BetterScreen(object):
                 del self.data_buffer[y]
 
             # Reset line_offset.
-            pt_cursor_position.y -= line_offset
-#            self.line_offset = 0
+            pt_cursor_position.y = 0
+            self.max_y = 0
         else:
             try:
                 interval = (
