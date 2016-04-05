@@ -198,7 +198,7 @@ class BetterScreen(object):
         self.max_y = 0  # Max 'y' position to which is written.
 
     def resize(self, lines=None, columns=None):
-        # don't do anything except saving the dimensions
+        # Save the dimensions.
         lines = lines if lines is not None else self.lines
         columns = columns if columns is not None else self.columns
 
@@ -207,6 +207,14 @@ class BetterScreen(object):
             self.columns = columns
 
             self._reset_offset_and_margins()
+
+            # If the height was reduced, and there are lines below
+            # `cursor_position_y+lines`. Remove them by setting 'max_y'.
+            # (If we don't do this. Clearing the screen, followed by reducing
+            # the height will keep the cursor at the top, hiding some content.)
+            self.max_y = min(
+                self.max_y,
+                self.pt_screen.cursor_position.y + lines - 1)
 
     @property
     def line_offset(self):
