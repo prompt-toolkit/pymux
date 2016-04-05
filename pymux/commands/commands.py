@@ -525,11 +525,14 @@ def send_keys(pymux, cli, variables):
             pane.process.write_key(k)
 
 
-@cmd('copy-mode')
+@cmd('copy-mode', options='[-u]')
 def copy_mode(pymux, cli, variables):
     """
     Enter copy mode.
     """
+    go_up = variables['-u']  # Go in copy mode and page-up directly.
+    # TODO: handle '-u'
+
     pane = pymux.arrangement.get_active_pane(cli)
     pane.enter_copy_mode()
 
