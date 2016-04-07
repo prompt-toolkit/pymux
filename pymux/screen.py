@@ -416,6 +416,13 @@ class BetterScreen(object):
 
             if char_width > 1:
                 row[cursor_position_x + 1] = char_cache[' ', token]
+            elif char_width == 0:
+                # This is probably a part of a decomposed unicode character.
+                # Merge into the previous cell.
+                # See: https://en.wikipedia.org/wiki/Unicode_equivalence
+                prev_char = row[cursor_position_x - 1]
+                row[cursor_position_x - 1] = char_cache[
+                    prev_char.char + char, prev_char.token]
 
             # .. note:: We can't use :meth:`cursor_forward()`, because that
             #           way, we'll never know when to linefeed.
