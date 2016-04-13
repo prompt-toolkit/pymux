@@ -468,7 +468,7 @@ class BetterScreen(object):
                 for line in range(top, bottom):
                     data_buffer[line + line_offset] = \
                         data_buffer[line + line_offset + 1]
-                    del data_buffer[line + line_offset + 1]
+                    data_buffer.pop(line + line_offset + 1, None)
             else:
                 self.cursor_down()
 
@@ -480,7 +480,7 @@ class BetterScreen(object):
         data_buffer = self.pt_screen.data_buffer
         for line in list(data_buffer):
             if line < remove_above:
-                del data_buffer[line]
+                data_buffer.pop(line, None)
 
     def clear_history(self):
         """
@@ -488,7 +488,7 @@ class BetterScreen(object):
         """
         for line in list(self.data_buffer):
             if line < self.line_offset:
-                del self.data_buffer[line]
+                self.data_buffer.pop(line, None)
 
     def reverse_index(self):
         margins = self.margins or Margins(0, self.lines - 1)
@@ -499,7 +499,7 @@ class BetterScreen(object):
         if self.pt_cursor_position.y - line_offset == top:
             for i in range(bottom - 1, top - 1, -1):
                 self.data_buffer[i + line_offset + 1] = self.data_buffer[i + line_offset]
-                del self.data_buffer[i + line_offset]
+                self.data_buffer.pop(i + line_offset, None)
         else:
             self.cursor_up()
 
@@ -594,16 +594,10 @@ class BetterScreen(object):
         if top <= pt_cursor_position.y - self.line_offset <= bottom:
             for line in range(bottom, pt_cursor_position.y - line_offset, -1):
                 if line - count < top:
-                    try:
-                        del data_buffer[line + line_offset]
-                    except KeyError:
-                        pass
+                    data_buffer.pop(line + line_offset, None)
                 else:
                     data_buffer[line + line_offset] = data_buffer[line + line_offset - count]
-                    try:
-                        del data_buffer[line + line_offset - count]
-                    except KeyError:
-                        pass
+                    data_buffer.pop(line + line_offset - count, None)
 
             self.carriage_return()
 
@@ -629,7 +623,7 @@ class BetterScreen(object):
                 # When 'x' lines further are out of the margins, replace by an empty line,
                 # Otherwise copy the line from there.
                 if line + count > bottom:
-                    del data_buffer[line + line_offset]
+                    data_buffer.pop(line + line_offset, None)
                 else:
                     data_buffer[line + line_offset] = self.data_buffer[line + count + line_offset]
 
@@ -825,7 +819,7 @@ class BetterScreen(object):
 
         if type_of == 2:
             # Delete line completely.
-            del data_buffer[pt_cursor_position.y]
+            data_buffer.pop(pt_cursor_position.y, None)
         else:
             line = data_buffer[pt_cursor_position.y]
 
@@ -837,7 +831,7 @@ class BetterScreen(object):
 
             for column in list(line.keys()):
                 if should_we_delete(column):
-                    del line[column]
+                    line.pop(column, None)
 
     def erase_in_display(self, type_of=0, private=False):
         """Erases display in a specific way.
@@ -860,7 +854,7 @@ class BetterScreen(object):
         if type_of == 3:
             # Clear data buffer.
             for y in list(self.data_buffer):
-                del self.data_buffer[y]
+                self.data_buffer.pop(y, None)
 
             # Reset line_offset.
             pt_cursor_position.y = 0
