@@ -403,26 +403,34 @@ class BetterScreen(object):
                     cursor_position_x = pt_screen.cursor_position.x
                     cursor_position_y = pt_screen.cursor_position.y
                 else:
-                    cursor_position_x -= char_width
+                    cursor_position_x -= max(0, char_width)
 
             # If Insert mode is set, new characters move old characters to
             # the right, otherwise terminal is in Replace mode and new
             # characters replace old characters at cursor position.
             if in_irm:
-                self.insert_characters(char_width)
+                self.insert_characters(max(0, char_width))
 
             row = data_buffer[cursor_position_y]
-            row[cursor_position_x] = pt_char
-
-            if char_width > 1:
-                row[cursor_position_x + 1] = char_cache[' ', token]
+            if char_width == 1:
+                row[cursor_position_x] = pt_char
+            elif char_width > 1:  # 2
+                # Double width character. Put an empty string in the second
+                # cell, because this is different from every character and
+                # causes the render engine to clear this character, when
+                # overwritten.
+                row[cursor_position_x] = pt_char
+                row[cursor_position_x + 1] = char_cache['', token]
             elif char_width == 0:
                 # This is probably a part of a decomposed unicode character.
                 # Merge into the previous cell.
                 # See: https://en.wikipedia.org/wiki/Unicode_equivalence
                 prev_char = row[cursor_position_x - 1]
                 row[cursor_position_x - 1] = char_cache[
-                    prev_char.char + char, prev_char.token]
+                    prev_char.char + pt_char.char, prev_char.token]
+            else:  # char_width < 0
+                # (Should not happen.)
+                char_width = 0
 
             # .. note:: We can't use :meth:`cursor_forward()`, because that
             #           way, we'll never know when to linefeed.
