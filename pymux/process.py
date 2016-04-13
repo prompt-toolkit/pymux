@@ -236,9 +236,12 @@ class Process(object):
         if paste and self.screen.bracketed_paste_enabled:
             data = '\x1b[200~' + data + '\x1b[201~'
 
+        self.write_bytes(data.encode('utf-8'))
+
+    def write_bytes(self, data):
         while self.master is not None:
             try:
-                os.write(self.master, data.encode('utf-8'))
+                os.write(self.master, data)
             except OSError as e:
                 # This happens when the window resizes and a SIGWINCH was received.
                 # We get 'Error: [Errno 4] Interrupted system call'
