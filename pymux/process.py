@@ -73,7 +73,7 @@ class Process(object):
         self.master, self.slave = os.openpty()
 
         # Master side -> attached to terminal emulator.
-        self._reader = PosixStdinReader(self.master)
+        self._reader = PosixStdinReader(self.master, errors='replace')
 
         # Create output stream and attach to screen
         self.sx = 0
@@ -268,7 +268,7 @@ class Process(object):
         d = self._reader.read(4096)  # Make sure not to read too much at once. (Otherwise,
                                      # this could block the event loop.)
 
-        if d:
+        if not self._reader.closed:
             def process():
                 self.stream.feed(d)
                 self.invalidate()
