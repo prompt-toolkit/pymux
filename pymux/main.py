@@ -52,9 +52,6 @@ class ClientState(object):
         #: Error/info message.
         self.message = None
 
-        # Vi state. (Each client has its own state.)
-        self.vi_state = ViState()
-
         # True when the command prompt is visible.
         self.command_mode = False
 
@@ -368,7 +365,7 @@ class Pymux(object):
             """ When the focus changes to a read/write buffer, make sure to go
             to insert mode. This happens when the ViState was set to NAVIGATION
             in the copy buffer. """
-            vi_state = self.key_bindings_manager.pt_key_bindings_manager.get_vi_state(cli)
+            vi_state = cli.vi_state
 
             if cli.current_buffer.read_only():
                 vi_state.input_mode = InputMode.NAVIGATION

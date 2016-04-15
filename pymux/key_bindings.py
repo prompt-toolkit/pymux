@@ -49,7 +49,6 @@ class KeyBindingsManager(object):
             enable_auto_suggest_bindings=True,
             enable_search=False,  # We have our own search bindings, that support multiple panes.
             enable_extra_page_navigation=True,
-            get_vi_state=self._get_vi_state,
             get_search_state=get_search_state)
 
         self.registry = self.pt_key_bindings_manager.registry
@@ -60,22 +59,11 @@ class KeyBindingsManager(object):
         # Load initial bindings.
         self._load_builtins()
         self._load_prefix_binding()
-        _load_search_bindings(pymux, self.registry, self._get_vi_state)
+        _load_search_bindings(pymux, self.registry)
 
         # Custom user configured key bindings.
         # { (needs_prefix, key) -> (command, handler) }
         self.custom_bindings = {}
-
-    def _get_vi_state(self, cli):
-        " Return the ViState instance for the current client. "
-        vi_state = self.pymux.get_client_state(cli).vi_state
-
-        # Make sure to put the Vi state in navigation mode for read only
-        # buffers.
-        if cli.current_buffer.read_only():
-            vi_state.input_mode = InputMode.NAVIGATION
-
-        return vi_state
 
     def _load_prefix_binding(self):
         """
@@ -312,7 +300,7 @@ class CustomBinding(object):
         self.arguments = arguments
 
 
-def _load_search_bindings(pymux, registry, get_vi_state):
+def _load_search_bindings(pymux, registry):
     """
     Load the key bindings for searching. (Vi and Emacs)
 
@@ -362,7 +350,7 @@ def _load_search_bindings(pymux, registry, get_vi_state):
         pane.is_searching = False
 
     def enter_search(cli):
-        get_vi_state(cli).input_mode = InputMode.INSERT
+        cli.vi_state.input_mode = InputMode.INSERT
 
         pane = pymux.arrangement.get_active_pane(cli)
         pane.is_searching = True
