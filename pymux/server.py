@@ -136,6 +136,8 @@ class ServerConnection(object):
 
     def _close_cli(self):
         if self in self.pymux.clis:
+            # This is important. If we would forget this, the server will
+            # render CLI output for clients that aren't connected anymore.
             del self.pymux.clis[self]
 
         self.cli = None
@@ -153,6 +155,7 @@ class ServerConnection(object):
     def detach_and_close(self):
         # Remove from Pymux.
         self.pymux.connections.remove(self)
+        self._close_cli()
 
         # Remove from eventloop.
         self.pymux.eventloop.remove_reader(self.connection.fileno())
