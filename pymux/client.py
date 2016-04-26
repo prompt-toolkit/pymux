@@ -1,8 +1,9 @@
 from __future__ import unicode_literals
 
-from prompt_toolkit.terminal.vt100_input import raw_mode, cooked_mode
-from prompt_toolkit.eventloop.posix import _select, call_on_sigwinch
 from prompt_toolkit.eventloop.base import INPUT_TIMEOUT
+from prompt_toolkit.eventloop.posix import _select, call_on_sigwinch
+from prompt_toolkit.eventloop.posix_utils import PosixStdinReader
+from prompt_toolkit.terminal.vt100_input import raw_mode, cooked_mode
 from prompt_toolkit.terminal.vt100_output import _get_size, Vt100_Output
 
 from pymux.utils import nonblocking
@@ -32,6 +33,18 @@ class Client(object):
         self.socket = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.socket.connect(socket_name)
         self.socket.setblocking(1)
+
+        # Input reader.
+        #     Some terminals, like lxterminal send non UTF-8 input sequences,
+        #     even when the input encoding is supposed to be UTF-8. This
+        #     happens in the case of mouse clicks in the right area of a wide
+        #     terminal. Apparently, these are some binary blobs in between the
+        #     UTF-8 input.)
+        #     We should not replace these, because this would break the
+        #     decoding otherwise. (Also don't pass errors='ignore', because
+        #     that doesn't work for parsing mouse input escape sequences, which
+        #     consist of a fixed number of bytes.)
+        self._stdin_reader = PosixStdinReader(sys.stdin.fileno(), errors='replace')
 
     def run_command(self, command, pane_id=None):
         """
@@ -142,7 +155,7 @@ class Client(object):
         Received data on stdin. Read and send to server.
         """
         with nonblocking(sys.stdin.fileno()):
-            data = sys.stdin.read()
+            data = self._stdin_reader.read()
 
         # Send input in chunks of 4k.
         step = 4056
