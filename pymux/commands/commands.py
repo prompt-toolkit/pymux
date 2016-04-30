@@ -458,7 +458,7 @@ def command_prompt(pymux, cli, variables):
         client_state.command_mode = True
 
     # Go to insert mode.
-    client_state.vi_state.input_mode = InputMode.INSERT
+    cli.vi_state.input_mode = InputMode.INSERT
 
 
 @cmd('send-prefix')
