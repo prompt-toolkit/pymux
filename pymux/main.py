@@ -13,6 +13,7 @@ from prompt_toolkit.interface import CommandLineInterface
 from prompt_toolkit.key_binding.vi_state import InputMode, ViState
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.terminal.vt100_output import Vt100_Output, _get_size
+from prompt_toolkit.utils import Callback
 
 from .arrangement import Arrangement, Pane, Window
 from .commands.commands import handle_command, call_command_handler
@@ -379,7 +380,8 @@ class Pymux(object):
             mouse_support=Condition(lambda cli: self.enable_mouse_support),
             use_alternate_screen=True,
             style=self.style,
-            get_title=get_title)
+            get_title=get_title,
+            on_invalidate=Callback(lambda cli: self.invalidate()))
 
         cli = CommandLineInterface(
             application=application,
@@ -422,8 +424,6 @@ class Pymux(object):
         # Redraw all CLIs. (Adding a new client could mean that the others
         # change size, so everything has to be redrawn.)
         self.invalidate()
-
-        cli.on_invalidate += lambda: self.invalidate()
 
         # Handle start-up comands.
         # (Does initial key bindings.)
