@@ -402,6 +402,7 @@ class Pymux(object):
                 cli.editing_mode = VI if self.mode_keys_vi_mode else EMACS
 
         cli.input_processor.beforeKeyPress += sync_vi_state
+        cli.input_processor.afterKeyPress += sync_vi_state
 
         # Set render postpone time. (.1 instead of 0).
         # This small change ensures that if for a split second a process
