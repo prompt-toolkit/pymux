@@ -13,7 +13,6 @@ from prompt_toolkit.interface import CommandLineInterface
 from prompt_toolkit.key_binding.vi_state import InputMode, ViState
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.terminal.vt100_output import Vt100_Output, _get_size
-from prompt_toolkit.utils import Callback
 
 from .arrangement import Arrangement, Pane, Window
 from .commands.commands import handle_command, call_command_handler
@@ -381,7 +380,7 @@ class Pymux(object):
             use_alternate_screen=True,
             style=self.style,
             get_title=get_title,
-            on_invalidate=Callback(lambda cli: self.invalidate()))
+            on_invalidate=(lambda cli: self.invalidate()))
 
         cli = CommandLineInterface(
             application=application,
@@ -392,7 +391,7 @@ class Pymux(object):
         # Synchronize the Vi state with the CLI object.
         # (This is stored in the current class, but expected to be in the
         # CommandLineInterface.)
-        def sync_vi_state():
+        def sync_vi_state(_):
             client_state = self.get_client_state(cli)
             VI = EditingMode.VI
             EMACS = EditingMode.EMACS
@@ -413,7 +412,7 @@ class Pymux(object):
         cli.max_render_postpone_time = .1  # Second.
 
         # Hide message when a key has been pressed.
-        def key_pressed():
+        def key_pressed(_):
             self.get_client_state(cli).message = None
         cli.input_processor.beforeKeyPress += key_pressed
 
