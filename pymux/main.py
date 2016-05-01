@@ -4,7 +4,7 @@ from prompt_toolkit.application import Application
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.buffer import Buffer, AcceptAction
 from prompt_toolkit.buffer_mapping import BufferMapping
-from prompt_toolkit.enums import DUMMY_BUFFER
+from prompt_toolkit.enums import DUMMY_BUFFER, EditingMode
 from prompt_toolkit.eventloop.callbacks import EventLoopCallbacks
 from prompt_toolkit.eventloop.posix import PosixEventLoop
 from prompt_toolkit.filters import Condition
@@ -386,6 +386,22 @@ class Pymux(object):
             output=output,
             input=input,
             eventloop=self.eventloop)
+
+        # Synchronize the Vi state with the CLI object.
+        # (This is stored in the current class, but expected to be in the
+        # CommandLineInterface.)
+        def sync_vi_state():
+            client_state = self.get_client_state(cli)
+            VI = EditingMode.VI
+            EMACS = EditingMode.EMACS
+
+            if (client_state.confirm_text or client_state.prompt_command or
+                    client_state.command_mode):
+                cli.editing_mode = VI if self.status_keys_vi_mode else EMACS
+            else:
+                cli.editing_mode = VI if self.mode_keys_vi_mode else EMACS
+
+        cli.input_processor.beforeKeyPress += sync_vi_state
 
         # Set render postpone time. (.1 instead of 0).
         # This small change ensures that if for a split second a process
