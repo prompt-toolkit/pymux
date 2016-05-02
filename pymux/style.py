@@ -3,6 +3,7 @@ The color scheme.
 """
 from __future__ import unicode_literals
 from prompt_toolkit.styles import style_from_dict, Style, Attrs
+from prompt_toolkit.styles.utils import split_token_in_parts, merge_attrs
 from prompt_toolkit.token import Token
 
 __all__ = (
@@ -77,6 +78,12 @@ class PymuxStyle(Style):
         self._token_to_attrs_dict = None
 
     def get_attrs_for_token(self, token):
+        result = []
+        for part in split_token_in_parts(token):
+            result.append(self._get_attrs_for_token(part))
+        return merge_attrs(result)
+
+    def _get_attrs_for_token(self, token):
         if token and token[0] == 'C':
             # Token starts with ('C',). Token describes its own style.
             c, fg, bg, bold, underline, italic, blink, reverse = token
