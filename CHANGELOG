@@ -1,6 +1,30 @@
 CHANGELOG
 =========
 
+0.10: 2016-05-05
+----------------
+
+Upgrade to prompt_toolkit 1.0.0
+
+New features:
+- Added 'C-b PPage' key binding (like tmux).
+- Many performance improvements in the vt100 parser.
+
+Improvements/fixes:
+- Don't crash when decoding utf-8 input fails. (Sometimes it happens when using
+  the mouse in lxterminal.)
+- Cleanup CLI object when the client was detached. (The server would become
+  very slow if the CLI was not removed for a couple of times.)
+- Replace errors when decoding utf-8 input.
+- Fixes regarding multiwidth characters.
+- Bugfix: Don't use 'del' on a defaultdict, but use pop(..., None) instead, in
+  order to avoid key errors.
+- Handle decomposed unicode characters correctly.
+- Bugfix regarding the handling of 'clear'.
+- Fixes a bug where the cursor stays at the top.
+- Fix: The socket in the pymux client should be blocking.
+
+
 0.9: 2016-03-14
 ---------------
 
