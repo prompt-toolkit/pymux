@@ -43,7 +43,13 @@ def _init():
     global LIBC
 
     if LIBC is None:
-        LIBC = cdll.LoadLibrary('libc.dylib')
+        try:
+            LIBC = cdll.LoadLibrary('libc.dylib')
+        except OSError:
+            # On OS X El Capitan, the above doesn't work for some reason and we
+            # have to explicitely mention the path.
+            # See: https://github.com/ffi/ffi/issues/461
+            LIBC = cdll.LoadLibrary('/usr/lib/libc.dylib')
 
 
 def get_proc_info(pid):
