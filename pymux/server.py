@@ -130,7 +130,8 @@ class ServerConnection(object):
         output = Vt100_Output(_SocketStdout(self._send_packet),
                               lambda: self.size,
                               true_color=true_color,
-                              term=term)
+                              term=term,
+                              write_binary=False)
         input = _ClientInput(self._send_packet)
         self.cli = self.pymux.create_cli(self, output, input)
 
