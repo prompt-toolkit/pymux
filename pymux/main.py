@@ -10,7 +10,7 @@ from prompt_toolkit.eventloop.posix import PosixEventLoop
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.input import PipeInput
 from prompt_toolkit.interface import CommandLineInterface
-from prompt_toolkit.key_binding.vi_state import InputMode, ViState
+from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.terminal.vt100_output import Vt100_Output, _get_size
 
