@@ -30,8 +30,12 @@ class ServerConnection(object):
 
         self._recv_buffer = b''
         self.cli = None
-        self._inputstream = InputStream(
-            lambda key: self.cli.input_processor.feed_key(key))
+
+        def feed_key(key):
+            self.cli.input_processor.feed(key)
+            self.cli.input_processor.process_keys()
+
+        self._inputstream = InputStream(feed_key)
 
         pymux.eventloop.add_reader(
             connection.fileno(), self._recv)
