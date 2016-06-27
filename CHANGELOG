@@ -1,6 +1,14 @@
 CHANGELOG
 =========
 
+0.11: 2016-06-27
+----------------
+
+Fixes:
+- Fix for OS X El Capitan: LoadLibrary('libc.dylib') failed.
+- Compatibility with the latest prompt_toolkit.
+
+
 0.10: 2016-05-05
 ----------------
 
