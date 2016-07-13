@@ -139,7 +139,7 @@ class BetterStream(Stream):
 
             return defaultdict(
                 lambda: dummy,
-                {event: getattr(listener, attr) for event, attr in source_dict.items()})
+                dict((event, getattr(listener, attr)) for event, attr in source_dict.items()))
 
         basic_dispatch = create_dispatch_dictionary(basic)
         sharp_dispatch = create_dispatch_dictionary(sharp)
