@@ -1,7 +1,8 @@
 from __future__ import unicode_literals
 
 from prompt_toolkit.eventloop.base import INPUT_TIMEOUT
-from prompt_toolkit.eventloop.posix import _select, call_on_sigwinch
+from prompt_toolkit.eventloop.posix import call_on_sigwinch
+from prompt_toolkit.eventloop.select import select_fds
 from prompt_toolkit.eventloop.posix_utils import PosixStdinReader
 from prompt_toolkit.terminal.vt100_input import raw_mode, cooked_mode
 from prompt_toolkit.terminal.vt100_output import _get_size, Vt100_Output
@@ -83,7 +84,7 @@ class Client(object):
 
             with call_on_sigwinch(self._send_size):
                 while True:
-                    r, w, x = _select([stdin_fd, socket_fd], [], [], current_timeout)
+                    r = select_fds([stdin_fd, socket_fd], current_timeout)
 
                     if socket_fd in r:
                         # Received packet from server.
