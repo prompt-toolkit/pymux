@@ -1,6 +1,14 @@
 CHANGELOG
 =========
 
+0.12: 2016-08-03
+----------------
+
+Fixes:
+- Prompt_toolkit 1.0.4 compatibilty.
+- Python 2.6 compatibility.
+
+
 0.11: 2016-06-27
 ----------------
 
