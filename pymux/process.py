@@ -426,7 +426,11 @@ if sys.platform in ('linux', 'linux2', 'cygwin'):
         """
         Return the process name for a given process ID.
         """
-        pgrp = os.tcgetpgrp(fd)
+        try:
+            pgrp = os.tcgetpgrp(fd)
+        except OSError:
+            # See: https://github.com/jonathanslenders/pymux/issues/46
+            return
 
         try:
             with open('/proc/%s/cmdline' % pgrp, 'rb') as f:
@@ -440,7 +444,10 @@ elif sys.platform == 'darwin':
         """
         Return the process name for a given process ID.
         """
-        pgrp = os.tcgetpgrp(fd)
+        try:
+            pgrp = os.tcgetpgrp(fd)
+        except OSError:
+            return
 
         try:
             return get_proc_name(pgrp)
