@@ -88,13 +88,14 @@ class ServerConnection(object):
         elif packet['cmd'] == 'start-gui':
             detach_other_clients = bool(packet['detach-others'])
             true_color = bool(packet['true-color'])
+            ansi_colors_only = bool(packet['ansi-colors-only'])
             term = packet['term']
 
             if detach_other_clients:
                 for c in self.pymux.connections:
                     c.detach_and_close()
 
-            self._create_cli(true_color=true_color, term=term)
+            self._create_cli(true_color=true_color, ansi_colors_only=ansi_colors_only, term=term)
 
     def _send_packet(self, data):
         """
@@ -126,7 +127,7 @@ class ServerConnection(object):
         finally:
             self._close_cli()
 
-    def _create_cli(self, true_color=False, term='xterm'):
+    def _create_cli(self, true_color=False, ansi_colors_only=False, term='xterm'):
         """
         Create CommandLineInterface for this client.
         Called when the client wants to attach the UI to the server.
@@ -134,6 +135,7 @@ class ServerConnection(object):
         output = Vt100_Output(_SocketStdout(self._send_packet),
                               lambda: self.size,
                               true_color=true_color,
+                              ansi_colors_only=ansi_colors_only,
                               term=term,
                               write_binary=False)
         input = _ClientInput(self._send_packet)

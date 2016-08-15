@@ -3,7 +3,7 @@
 pymux: Pure Python terminal multiplexer.
 Usage:
     pymux [(standalone|start-server|attach)] [-d]
-          [--truecolor] [(-S <socket>)] [(-f <file>)]
+          [--truecolor] [--ansicolor] [(-S <socket>)] [(-f <file>)]
           [(--log <logfile>)]
           [--] [<command>]
     pymux list-sessions
@@ -48,6 +48,8 @@ def run():
     filename = a['<file>']
     command = a['<command>']
     true_color = a['--truecolor']
+    ansi_colors_only = a['--ansicolor'] or \
+        bool(os.environ.get('PROMPT_TOOLKIT_ANSI_COLORS_ONLY', False))
 
     # Parse pane_id from socket_name. It looks like "socket_name,pane_id".
     if socket_name and ',' in socket_name:
@@ -76,7 +78,7 @@ def run():
         logging.basicConfig(filename=a['<logfile>'], level=logging.DEBUG)
 
     if a['standalone']:
-        mux.run_standalone(true_color=true_color)
+        mux.run_standalone(true_color=true_color, ansi_colors_only=ansi_colors_only)
 
     elif a['list-sessions'] or a['<command>'] in ('ls', 'list-sessions'):
         for c in list_clients():
@@ -107,12 +109,14 @@ def run():
         if socket_name:
             Client(socket_name).attach(
                 detach_other_clients=detach_other_clients,
-                true_color=true_color)
+                true_color=true_color,
+                ansi_colors_only=ansi_colors_only)
         else:
             # Connect to the first server.
             for c in list_clients():
                 c.attach(detach_other_clients=detach_other_clients,
-                         true_color=true_color)
+                         true_color=true_color,
+                         ansi_colors_only=ansi_colors_only)
                 break
             else:  # Nobreak.
                 print('No pymux instance found.')
@@ -132,7 +136,8 @@ def run():
             # daemon. (Otherwise the `waitpid` call won't work.)
             mux.run_server()
         else:
-            Client(socket_name).attach(true_color=true_color)
+            Client(socket_name).attach(
+                true_color=true_color, ansi_colors_only=ansi_colors_only)
 
     else:
         if socket_name_from_env:

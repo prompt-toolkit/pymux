@@ -59,17 +59,19 @@ class Client(object):
             'pane_id': pane_id
         })
 
-    def attach(self, detach_other_clients=False, true_color=False):
+    def attach(self, detach_other_clients=False, ansi_colors_only=False, true_color=False):
         """
         Attach client user interface.
         """
         assert isinstance(detach_other_clients, bool)
+        assert isinstance(ansi_colors_only, bool)
         assert isinstance(true_color, bool)
 
         self._send_size()
         self._send_packet({
             'cmd': 'start-gui',
             'detach-others': detach_other_clients,
+            'ansi-colors-only': ansi_colors_only,
             'true-color': true_color,
             'term': os.environ.get('TERM', ''),
             'data': ''
