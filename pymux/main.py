@@ -33,6 +33,8 @@ import signal
 import six
 import sys
 import tempfile
+import threading
+import time
 import traceback
 import weakref
 
@@ -95,6 +97,7 @@ class Pymux(object):
         self.status_keys_vi_mode = False
         self.mode_keys_vi_mode = False
         self.history_limit = 2000
+        self.status_interval = 1
         self.default_terminal = 'xterm-256color'
         self.status_left = '[#S] '
         self.status_left_length = 20
@@ -137,6 +140,20 @@ class Pymux(object):
         self.key_bindings_manager = KeyBindingsManager(self)
 
         self.style = PymuxStyle()
+
+    def _start_auto_refresh_thread(self):
+        """
+        Start the background thread that auto refreshes all clients according to
+        `self.status_interval`.
+        """
+        def run():
+            while True:
+                time.sleep(self.status_interval)
+                self.invalidate()
+
+        t = threading.Thread(target=run)
+        t.daemon = True
+        t.start()
 
     def get_client_state(self, cli):
         """
@@ -506,6 +523,9 @@ class Pymux(object):
 
         signal.signal(signal.SIGINT, handle_sigint)
 
+        # Start background threads.
+        self._start_auto_refresh_thread()
+
         # Run eventloop.
 
         # XXX: Both the PipeInput and DummyCallbacks are not used.
@@ -535,6 +555,7 @@ class Pymux(object):
         This is mainly useful for debugging.
         """
         self._runs_standalone = True
+        self._start_auto_refresh_thread()
         cli = self.create_cli(
             connection=None,
             output=Vt100_Output.from_pty(sys.stdout, true_color=true_color))

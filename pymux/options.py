@@ -190,6 +190,8 @@ ALL_OPTIONS = {
     'default-shell': StringOption(
         'default_shell', [get_default_shell()]),
     'status-justify': JustifyOption('status_justify'),
+    'status-interval': PositiveIntOption(
+        'status_interval', [1, 2, 4, 8, 16, 30, 60]),
 }
 
 
