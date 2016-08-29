@@ -107,6 +107,11 @@ PYMUX_TO_PROMPT_TOOLKIT_KEYS = {
     'C-Down': (Keys.ControlDown, ),
     'C-\\': (Keys.ControlBackslash, ),
 
+    'S-Left':  (Keys.ShiftLeft, ),
+    'S-Right': (Keys.ShiftRight, ),
+    'S-Up':    (Keys.ShiftUp, ),
+    'S-Down':  (Keys.ShiftDown, ),
+
     'M-C-a': (Keys.Escape, Keys.ControlA, ),
     'M-C-b': (Keys.Escape, Keys.ControlB, ),
     'M-C-c': (Keys.Escape, Keys.ControlC, ),
