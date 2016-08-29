@@ -549,7 +549,7 @@ class Pymux(object):
         # Clean up socket.
         os.remove(self.socket_name)
 
-    def run_standalone(self, true_color=False):
+    def run_standalone(self, true_color=False, ansi_colors_only=False):
         """
         Run pymux standalone, rather than using a client/server architecture.
         This is mainly useful for debugging.
@@ -558,7 +558,8 @@ class Pymux(object):
         self._start_auto_refresh_thread()
         cli = self.create_cli(
             connection=None,
-            output=Vt100_Output.from_pty(sys.stdout, true_color=true_color))
+            output=Vt100_Output.from_pty(
+                sys.stdout, true_color=true_color, ansi_colors_only=ansi_colors_only))
         cli._is_running = False
         cli.run()
 
