@@ -177,6 +177,7 @@ ALL_OPTIONS = {
     'prefix': KeyPrefixOption(),
     'remain-on-exit': OnOffOption('remain_on_exit'),
     'status': OnOffOption('enable_status'),
+    'pane-status': OnOffOption('enable_pane_status'),
     'status-keys': KeysOption('status_keys_vi_mode'),
     'mode-keys': KeysOption('mode_keys_vi_mode'),
     'default-terminal': StringOption(

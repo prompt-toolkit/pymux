@@ -92,6 +92,7 @@ class Pymux(object):
         # Options
         self.enable_mouse_support = True
         self.enable_status = True
+        self.enable_pane_status = False
         self.enable_bell = True
         self.remain_on_exit = False
         self.status_keys_vi_mode = False

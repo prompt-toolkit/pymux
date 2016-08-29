@@ -553,6 +553,7 @@ def _create_split(pymux, split):
     assert isinstance(split, (arrangement.HSplit, arrangement.VSplit))
 
     is_vsplit = isinstance(split, arrangement.VSplit)
+    is_hsplit = not is_vsplit
 
     content = []
 
@@ -560,12 +561,24 @@ def _create_split(pymux, split):
         " Draw a vertical line between windows. (In case of a vsplit) "
         char = '│'
         content.append(HSplit([
-                Window(
-                   width=D.exact(1), height=D.exact(1),
-                   content=FillControl(char, token=Token.TitleBar.Line)),
+                ConditionalContainer(
+                    content=Window(
+                        width=D.exact(1), height=D.exact(1),
+                        content=FillControl(char, token=Token.TitleBar.Line)),
+                    filter=Condition(lambda cli: pymux.enable_pane_status),
+                ),
                 Window(width=D.exact(1),
                        content=FillControl(char, token=Token.Line))
             ]))
+
+    def horizontal_line():
+        char = '─'
+        content.append(
+            ConditionalContainer(
+                content=Window(height=D.exact(1),
+                               content=FillControl(char, token=Token.Line)),
+                filter=Condition(lambda cli: not pymux.enable_pane_status)),
+        )
 
     for i, item in enumerate(split):
         if isinstance(item, (arrangement.VSplit, arrangement.HSplit)):
@@ -575,8 +588,12 @@ def _create_split(pymux, split):
         else:
             raise TypeError('Got %r' % (item,))
 
-        if is_vsplit and i != len(split) - 1:
-            vertical_line()
+        last_item = i == len(split) - 1
+        if not last_item:
+            if is_vsplit:
+                vertical_line()
+            elif is_hsplit:
+                horizontal_line()
 
     def get_average_weight():
         """ Calculate average weight of the children. Return 1 if none of
@@ -609,8 +626,14 @@ def _create_split(pymux, split):
             result.append(D(weight=split.weights.get(item) or average_weight))
 
             # Add dimension for the vertical border.
-            if is_vsplit and i != len(split) - 1:
+            last_item = i == len(split) - 1
+            if is_vsplit and not last_item:
                 result.append(D.exact(1))
+            elif is_hsplit and not last_item:
+                if pymux.enable_pane_status:
+                    result.append(D.exact(0))
+                else:
+                    result.append(D.exact(1))
 
         return result
 
@@ -626,7 +649,7 @@ def _create_split(pymux, split):
         """
         sizes = []
         for i, size in enumerate(dimensions):
-            if not (is_vsplit and i % 2 != 0):
+            if i % 2 == 0:
                 sizes.append(size)
 
         for c, size in zip(split, sizes):
@@ -728,19 +751,21 @@ def _create_container_for_process(pymux, arrangement_pane, zoom=False):
         pymux, arrangement_pane,
         content=HSplit([
             # The title bar.
-            VSplit([
-                Window(
-                    height=D.exact(1),
-                    content=TokenListControl(
-                        get_title_tokens,
-                        get_default_char=lambda cli: Char(' ', get_titlebar_token(cli)))
-                ),
-                Window(
-                    height=D.exact(1),
-                    width=D.exact(4),
-                    content=TokenListControl(get_pane_index)
-                )
-            ]),
+            ConditionalContainer(
+                content=VSplit([
+                        Window(
+                            height=D.exact(1),
+                            content=TokenListControl(
+                                get_title_tokens,
+                                get_default_char=lambda cli: Char(' ', get_titlebar_token(cli)))
+                        ),
+                        Window(
+                            height=D.exact(1),
+                            width=D.exact(4),
+                            content=TokenListControl(get_pane_index)
+                        )
+                    ]),
+                filter=Condition(lambda cli: pymux.enable_pane_status)),
             # The pane content.
             FloatContainer(
                 content=HSplit([
@@ -810,6 +835,7 @@ def _create_container_for_process(pymux, arrangement_pane, zoom=False):
             )
         ])
     )
+
 
 class _FillControl(FillControl):
     """
@@ -916,6 +942,17 @@ class HighlightBorders(_ContainerProxy):
                 data_buffer[wp.ypos + wp.height][wp.xpos - 1] = _border_left_bottom
                 data_buffer[wp.ypos + wp.height][wp.xpos + wp.width] = _border_right_bottom
 
+            # Top line. (When we don't show the pane status bar.)
+            if not self.pymux.enable_pane_status and wp.ypos >= 1:
+                row = data_buffer[wp.ypos - 1]
+
+                for x in range(wp.xpos, wp.xpos + wp.width):
+                    row[x] = _border_horizontal
+
+                # Left/right top.
+                data_buffer[wp.ypos - 1][wp.xpos - 1] = _border_left_top
+                data_buffer[wp.ypos - 1][wp.xpos + wp.width] = _border_right_top
+
             # Left and right line.
             for y in range(wp.ypos + 1, wp.ypos + wp.height):
                 data_buffer[y][wp.xpos - 1] = _border_vertical
@@ -933,23 +970,24 @@ class HighlightBorders(_ContainerProxy):
         xleft = xpos - 1
         xright = xpos + width
 
-        # First line.
-        row = data_buffer[ypos]
-
-        if row[xleft].token == Token.Line:
-            row[xleft] = _focussed_border_left_top
-        else:
-            row[xleft] = _focussed_border_titlebar
-
-        if row[xright].token == Token.Line:
-            row[xright] = _focussed_border_right_top
-        else:
-            row[xright] = _focussed_border_titlebar
-
-        # Every following line.
-        for y in range(ypos + 1, ypos + height):
+        # Left and right border.
+        for y in range(ypos, ypos + height):
             row = data_buffer[y]
             row[xleft] = row[xright] = _focussed_border_vertical
+
+        # Borders that are touching the pane status bar line.
+        if self.pymux.enable_pane_status:
+            row = data_buffer[ypos]
+
+            if row[xleft].token == Token.Line:
+                row[xleft] = _focussed_border_left_top
+            else:
+                row[xleft] = _focussed_border_titlebar
+
+            if row[xright].token == Token.Line:
+                row[xright] = _focussed_border_right_top
+            else:
+                row[xright] = _focussed_border_titlebar
 
         # Draw the bottom line. (Only when there is space.)
         if ypos + height < write_position.ypos + write_position.height:
@@ -963,6 +1001,19 @@ class HighlightBorders(_ContainerProxy):
             # Bottom corners.
             row[xpos - 1] = _focussed_border_left_bottom
             row[xpos + width] = _focussed_border_right_bottom
+
+        # Draw the top line.
+        if not self.pymux.enable_pane_status and ypos >= 1:
+            row = data_buffer[ypos - 1]
+
+            for x in range(xpos, xpos + width):
+                # Don't overwrite the titlebar of a pane below.
+                if row[x].token == Token.Line:
+                    row[x] = _focussed_border_horizontal
+
+            # Bottom corners.
+            row[xpos - 1] = _focussed_border_left_top
+            row[xpos + width] = _focussed_border_right_top
 
 
 class TracePaneWritePosition(_ContainerProxy):
@@ -1216,7 +1267,6 @@ class Vt100Window(Container):
                         six.unichr(ev),
                         six.unichr(x + 33),
                         six.unichr(y + 33)))
-
 
     def walk(self, cli):
         # Only yield self. A window doesn't have children.
