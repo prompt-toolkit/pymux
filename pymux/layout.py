@@ -970,24 +970,21 @@ class HighlightBorders(_ContainerProxy):
         xleft = xpos - 1
         xright = xpos + width
 
-        # Left and right border.
-        for y in range(ypos, ypos + height):
-            row = data_buffer[y]
-            row[xleft] = row[xright] = _focussed_border_vertical
-
         # Borders that are touching the pane status bar line.
         if self.pymux.enable_pane_status:
             row = data_buffer[ypos]
+            row[xleft] = _focussed_border_left_top
+            row[xright] = _focussed_border_right_top
 
-            if row[xleft].token == Token.Line:
-                row[xleft] = _focussed_border_left_top
-            else:
-                row[xleft] = _focussed_border_titlebar
+        # Left and right border.
+        if self.pymux.enable_pane_status:
+            start_ypos = ypos + 1
+        else:
+            start_ypos = ypos
 
-            if row[xright].token == Token.Line:
-                row[xright] = _focussed_border_right_top
-            else:
-                row[xright] = _focussed_border_titlebar
+        for y in range(start_ypos, ypos + height):
+            row = data_buffer[y]
+            row[xleft] = row[xright] = _focussed_border_vertical
 
         # Draw the bottom line. (Only when there is space.)
         if ypos + height < write_position.ypos + write_position.height:
