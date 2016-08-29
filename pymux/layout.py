@@ -1056,14 +1056,16 @@ def focus_down(pymux, cli):
     " Move focus down. "
     _move_focus(pymux, cli,
                 lambda wp: wp.xpos,
-                lambda wp: wp.ypos + wp.height + 1)
+                lambda wp: wp.ypos + wp.height + 2)
+        # 2 in order to skip over the border. Only required when the
+        # pane-status is not shown, but a border instead.
 
 
 def focus_up(pymux, cli):
     " Move focus up. "
     _move_focus(pymux, cli,
                 lambda wp: wp.xpos,
-                lambda wp: wp.ypos - 1)
+                lambda wp: wp.ypos - 2)
 
 
 def _move_focus(pymux, cli, get_x, get_y):
