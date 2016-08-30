@@ -57,6 +57,11 @@ def prompt_toolkit_key_to_vt100_key(key, application_mode=False):
         Keys.Down: '\x1bOB',
     }
 
+    if key == Keys.ControlJ:
+        # Required for redis-cli. This can be removed when prompt_toolkit stops
+        # replacing \r by \n.
+        return '\r'
+
     if key == '\n':
         return '\r'
 
