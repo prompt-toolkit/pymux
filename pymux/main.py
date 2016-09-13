@@ -547,8 +547,9 @@ class Pymux(object):
             os.close(fd)
             raise
 
-        # Clean up socket.
-        os.remove(self.socket_name)
+        finally:
+            # Clean up socket.
+            os.remove(self.socket_name)
 
     def run_standalone(self, true_color=False, ansi_colors_only=False):
         """
