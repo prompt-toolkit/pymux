@@ -46,7 +46,16 @@ class ServerConnection(object):
         (Parse it.)
         """
         # Read next chunk.
-        data = self.connection.recv(1024)
+        try:
+            data = self.connection.recv(1024)
+        except OSError as e:
+            # On OSX, when we try to create a new window by typing "pymux
+            # new-window" in a centain pane, very often we get the following
+            # error: "OSError: [Errno 9] Bad file descriptor."
+            # This doesn't seem very harmful, and we can just try again.
+            logger.warning('Got OSError while reading data from client: %s. '
+                           'Trying again.', e)
+            return
 
         if data == b'':
             # End of file. Close connection.
@@ -65,7 +74,13 @@ class ServerConnection(object):
         """
         Process packet received from client.
         """
-        packet = json.loads(data.decode('utf-8'))
+        try:
+            packet = json.loads(data.decode('utf-8'))
+        except ValueError:
+            # So far, this never happened. But it would be good to have some
+            # protection.
+            logger.warning('Received invalid JSON from client. Ignoring.')
+            return
 
         # Handle commands.
         if packet['cmd'] == 'run-command':
