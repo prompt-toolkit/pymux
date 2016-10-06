@@ -81,14 +81,15 @@ def format_pymux_string(pymux, cli, string, window=None, pane=None):
     }
 
     # Date/time formatting.
-    try:
-        if six.PY2:
-            string = datetime.datetime.now().strftime(
-                string.encode('utf-8')).decode('utf-8')
-        else:
-            string = datetime.datetime.now().strftime(string)
-    except ValueError:  # strftime format ends with raw %
-        string = '<ValueError>'
+    if '%' in string:
+        try:
+            if six.PY2:
+                string = datetime.datetime.now().strftime(
+                    string.encode('utf-8')).decode('utf-8')
+            else:
+                string = datetime.datetime.now().strftime(string)
+        except ValueError:  # strftime format ends with raw %
+            string = '<ValueError>'
 
     # Apply '#' formatting.
     for symbol, f in format_table.items():
