@@ -19,7 +19,6 @@ import signal
 import sys
 import time
 import traceback
-import datetime
 
 __all__ = (
     'Process',
@@ -297,7 +296,7 @@ class Process(object):
                 # that we will process max 1k/1s in case of saturation.
                 # That should be enough to prevent the UI from feeling
                 # unresponsive.
-                timestamp = datetime.datetime.now() + datetime.timedelta(seconds=1)
+                timestamp = time.time() + 1
 
                 self.eventloop.call_from_executor(
                     do_asap, _max_postpone_until=timestamp)
