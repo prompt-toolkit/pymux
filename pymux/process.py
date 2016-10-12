@@ -282,7 +282,8 @@ class Process(object):
 
             # Otherwise, postpone processing until we have CPU time available.
             else:
-                self.eventloop.remove_reader(self.master)
+                if self.master is not None:
+                    self.eventloop.remove_reader(self.master)
 
                 def do_asap():
                     " Process output and reconnect to event loop. "
