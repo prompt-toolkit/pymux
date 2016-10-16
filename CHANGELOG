@@ -1,6 +1,28 @@
 CHANGELOG
 =========
 
+0.13: 2016-10-16
+----------------
+
+New features:
+- Added status-interval option.
+- Support for ANSI colors only.
+  * Added --ansicolor option.
+  * Check PROMPT_TOOLKIT_ANSI_COLORS_ONLY environment variable.
+- Added pane-status option for hiding the pane status bar.
+  (Disabled by default.)
+- Expose shift+arrow keys for key bindings.
+
+Performance improvements:
+- Only do datetime formatting if the string actually contains a '%'
+  character.
+
+Fixes:
+- Catch OSError in os.tcgetpgrp.
+- Clean up sockets, also in case of a crash.
+- Fix in process.py: don't call remove_reader when master is None.
+
+
 0.12: 2016-08-03
 ----------------
 
