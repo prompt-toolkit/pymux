@@ -4,7 +4,8 @@ Key bindings.
 from __future__ import unicode_literals
 from prompt_toolkit.enums import IncrementalSearchDirection
 from prompt_toolkit.filters import HasFocus, Condition, HasSelection
-from prompt_toolkit.key_binding.manager import KeyBindingManager as pt_KeyBindingManager
+from prompt_toolkit.key_binding.defaults import load_key_bindings, load_mouse_bindings
+from prompt_toolkit.key_binding.registry import MergedRegistry, ConditionalRegistry, Registry
 from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.selection import SelectionType
@@ -35,22 +36,26 @@ class KeyBindingsManager(object):
         # Start from this KeyBindingManager from prompt_toolkit, to have basic
         # editing functionality for the command line. These key binding are
         # however only active when the following `enable_all` condition is met.
-        self.pt_key_bindings_manager = pt_KeyBindingManager(
-            enable_all=(HasFocus(COMMAND) | HasFocus(PROMPT) | InScrollBuffer(pymux)) & ~HasPrefix(pymux),
-            enable_auto_suggest_bindings=True,
-            enable_search=False,  # We have our own search bindings, that support multiple panes.
-            enable_extra_page_navigation=True,
-            get_search_state=get_search_state)
-
-        self.registry = self.pt_key_bindings_manager.registry
+        self.registry = MergedRegistry([
+            ConditionalRegistry(
+                registry=load_key_bindings(
+                    enable_auto_suggest_bindings=True,
+                    enable_search=False,  # We have our own search bindings, that support multiple panes.
+                    enable_extra_page_navigation=True,
+                    get_search_state=get_search_state),
+                filter=(HasFocus(COMMAND) | HasFocus(PROMPT) |
+                        InScrollBuffer(pymux)) & ~HasPrefix(pymux),
+            ),
+            load_mouse_bindings(),
+            self._load_builtins(),
+            _load_search_bindings(pymux),
+        ])
 
         self._prefix = (Keys.ControlB, )
         self._prefix_binding = None
 
         # Load initial bindings.
-        self._load_builtins()
         self._load_prefix_binding()
-        _load_search_bindings(pymux, self.registry)
 
         # Custom user configured key bindings.
         # { (needs_prefix, key) -> (command, handler) }
@@ -96,7 +101,7 @@ class KeyBindingsManager(object):
         Fill the Registry with the hard coded key bindings.
         """
         pymux = self.pymux
-        registry = self.registry
+        registry = Registry()
 
         # Create filters.
         has_prefix = HasPrefix(pymux)
@@ -291,13 +296,14 @@ class CustomBinding(object):
         self.arguments = arguments
 
 
-def _load_search_bindings(pymux, registry):
+def _load_search_bindings(pymux):
     """
     Load the key bindings for searching. (Vi and Emacs)
 
     This is different from the ones of prompt_toolkit, because we have a
     individual search buffers for each pane.
     """
+    registry = Registry()
     is_searching = InScrollBufferSearching(pymux)
     in_scroll_buffer_not_searching = InScrollBufferNotSearching(pymux)
 
@@ -396,3 +402,5 @@ def _load_search_bindings(pymux, registry):
         if not direction_changed:
             pane.scroll_buffer.apply_search(
                 pane.search_state, include_current_position=False, count=event.arg)
+
+    return registry
