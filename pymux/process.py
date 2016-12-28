@@ -67,6 +67,7 @@ class Process(object):
         self.pid = None
         self.is_terminated = False
         self.suspended = False
+        self._reader_connected = False
 
         # Create pseudo terminal for this pane.
         self.master, self.slave = os.openpty()
@@ -153,7 +154,7 @@ class Process(object):
             " PID received. Back in the main thread. "
             # Close pty and remove reader.
             os.close(self.master)
-            self.eventloop.remove_reader(self.master)
+            self._remove_reader()
             self.master = None
 
             # Callback.
@@ -256,12 +257,21 @@ class Process(object):
             key, application_mode=self.screen.in_application_mode)
         self.write_input(data)
 
+    def _remove_reader(self):
+        """
+        Stop processing stdout from the process.
+        """
+        if self.master is not None and self._reader_connected:
+            self.eventloop.remove_reader(self.master)
+            self._reader_connected = False
+
     def _connect_reader(self):
         """
         Process stdout output from the process.
         """
-        if self.master is not None:
+        if self.master is not None and not self._reader_connected:
             self.eventloop.add_reader(self.master, self._read)
+            self._reader_connected = True
 
     def _read(self):
         """
@@ -282,13 +292,13 @@ class Process(object):
 
             # Otherwise, postpone processing until we have CPU time available.
             else:
-                if self.master is not None:
-                    self.eventloop.remove_reader(self.master)
+                self._remove_reader()
 
                 def do_asap():
                     " Process output and reconnect to event loop. "
                     process()
-                    self._connect_reader()
+                    if not self.suspended:
+                        self._connect_reader()
 
                 # When the event loop is saturated because of CPU, we will
                 # postpone this processing max 'x' seconds.
@@ -303,14 +313,14 @@ class Process(object):
                     do_asap, _max_postpone_until=timestamp)
         else:
             # End of stream. Remove child.
-            self.eventloop.remove_reader(self.master)
+            self._remove_reader()
 
     def suspend(self):
         """
         Suspend process. Stop reading stdout. (Called when going into copy mode.)
         """
         self.suspended = True
-        self.eventloop.remove_reader(self.master)
+        self._remove_reader()
 
     def resume(self):
         """
