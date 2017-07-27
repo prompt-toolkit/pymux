@@ -1,6 +1,14 @@
 CHANGELOG
 =========
 
+0.14: 2017-07-27
+----------------
+
+Fixes:
+- Fixed bug in remove_reader (ValueError).
+- Pin Pyte requirements belowe 0.6.0.
+
+
 0.13: 2016-10-16
 ----------------
 
