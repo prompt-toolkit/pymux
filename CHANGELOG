@@ -1,0 +1,144 @@
+CHANGELOG
+=========
+
+0.13: 2016-10-16
+----------------
+
+New features:
+- Added status-interval option.
+- Support for ANSI colors only.
+  * Added --ansicolor option.
+  * Check PROMPT_TOOLKIT_ANSI_COLORS_ONLY environment variable.
+- Added pane-status option for hiding the pane status bar.
+  (Disabled by default.)
+- Expose shift+arrow keys for key bindings.
+
+Performance improvements:
+- Only do datetime formatting if the string actually contains a '%'
+  character.
+
+Fixes:
+- Catch OSError in os.tcgetpgrp.
+- Clean up sockets, also in case of a crash.
+- Fix in process.py: don't call remove_reader when master is None.
+
+
+0.12: 2016-08-03
+----------------
+
+Fixes:
+- Prompt_toolkit 1.0.4 compatibilty.
+- Python 2.6 compatibility.
+
+
+0.11: 2016-06-27
+----------------
+
+Fixes:
+- Fix for OS X El Capitan: LoadLibrary('libc.dylib') failed.
+- Compatibility with the latest prompt_toolkit.
+
+
+0.10: 2016-05-05
+----------------
+
+Upgrade to prompt_toolkit 1.0.0
+
+New features:
+- Added 'C-b PPage' key binding (like tmux).
+- Many performance improvements in the vt100 parser.
+
+Improvements/fixes:
+- Don't crash when decoding utf-8 input fails. (Sometimes it happens when using
+  the mouse in lxterminal.)
+- Cleanup CLI object when the client was detached. (The server would become
+  very slow if the CLI was not removed for a couple of times.)
+- Replace errors when decoding utf-8 input.
+- Fixes regarding multiwidth characters.
+- Bugfix: Don't use 'del' on a defaultdict, but use pop(..., None) instead, in
+  order to avoid key errors.
+- Handle decomposed unicode characters correctly.
+- Bugfix regarding the handling of 'clear'.
+- Fixes a bug where the cursor stays at the top.
+- Fix: The socket in the pymux client should be blocking.
+
+
+0.9: 2016-03-14
+---------------
+
+Upgrade to prompt_toolkit 0.60
+
+
+0.8: 2016-03-06
+---------------
+
+Upgrade to prompt_toolkit 0.59
+
+
+0.7: 2016-01-16
+---------------
+
+Fixes:
+- Fixed FreeBSD support.
+- Compatibility with the latest Pyte version.
+- Handle 'No such process' in os.kill.
+
+
+0.6: 2016-01-11
+---------------
+
+Fixes:
+- Fix module import of pyte==0.5.1
+- Use gettempdir() for sockets.
+- Disable bracketed paste when leaving client.
+- Keep dimensions when closing a pane.
+
+New features:
+- Display the process name on Mac OS X.
+- Exit scroll buffer when pressing enter.
+- Added synchronize-panes window option.
+
+
+0.5: 2016-01-05
+----------------
+
+Fixes:
+- Handle KeyError in screen.insert_lines.
+
+
+0.4: 2016-01-04
+----------------
+
+Fixes:
+- After closing a pane, go to the previous pane.
+- Write crash reports to a secure temp file.
+- Added 'ls' as alias for list-sessions.
+
+Better performance:
+- Using a coroutine for the vt100 parser. (Much faster.)
+- Give priority to panes that have the focus.
+- Never postpone the rendering in case of high CPU. (Fix in prompt_toolkit.)
+
+
+0.3: 2016-01-03
+----------------
+
+New features:
+- Take $SHELL into account.
+
+Fixes:
+- Python 2 encoding bug fixed.
+
+
+0.2: 2016-01-03
+----------------
+
+First published version of Pymux, using prompt_toolkit.
+
+
+0.1: 2014-02-19
+---------------
+
+Initial experimental version of Pymux, written using asyncio. (This one is
+discontinued in favour of the new version, that uses prompt_toolkit.)
+still available here: https://github.com/jonathanslenders/old-pymux
