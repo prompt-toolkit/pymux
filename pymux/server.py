@@ -10,8 +10,10 @@ from prompt_toolkit.input.vt100 import PipeInput
 from prompt_toolkit.input.vt100_parser import Vt100Parser
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.output.vt100 import Vt100_Output
+from functools import partial
 
 from .log import logger
+import win32file
 
 __all__ = (
     'ServerConnection',
@@ -23,10 +25,13 @@ class ServerConnection(object):
     """
     For each client that connects, we have one instance of this class.
     """
-    def __init__(self, pymux, connection, client_address):
+    def __init__(self, pymux, socket):
         self.pymux = pymux
-        self.connection = connection
-        self.client_address = client_address
+
+        self.socket = socket
+        self.handle = socket.handle
+
+        self.connection = socket.handle
         self.size = Size(rows=20, columns=80)
         self._closed = False
 
@@ -40,26 +45,32 @@ class ServerConnection(object):
         self._inputstream = Vt100Parser(feed_key)
         self._pipeinput = _ClientInput(self._send_packet)
 
-        get_event_loop().add_reader(
-            connection.fileno(), self._recv)
+        print('add win32 handle', socket, socket.handle)
+#        if connection:  # XXX: not sure why we get '0' the first time.
+#            get_event_loop().add_win32_handle(connection, self._win_recv)
 
-    def _recv(self):
+        if socket.handle:  # XXX: not sure why we get '0' the first time.
+            get_event_loop().run_in_executor(self._start_reader_thread)
+
+    def _start_reader_thread(self):
+        while True:
+            print('Reading')
+            num, data = win32file.ReadFile(self.socket, 4096)
+            print('Received', repr(num), repr(data))
+
+            get_event_loop().call_from_executor(
+                partial(self._process_chunk, data))
+
+#    def _win_recv(self):
+#        print('win recv')
+#        data = win32file.ReadFile(self.connection, 4096)
+#        print('received', repr(data))
+
+    def _process_chunk(self, data):
         """
         Data received from the client.
         (Parse it.)
         """
-        # Read next chunk.
-        try:
-            data = self.connection.recv(1024)
-        except OSError as e:
-            # On OSX, when we try to create a new window by typing "pymux
-            # new-window" in a centain pane, very often we get the following
-            # error: "OSError: [Errno 9] Bad file descriptor."
-            # This doesn't seem very harmful, and we can just try again.
-            logger.warning('Got OSError while reading data from client: %s. '
-                           'Trying again.', e)
-            return
-
         if data == b'':
             # End of file. Close connection.
             self.detach_and_close()
@@ -84,6 +95,8 @@ class ServerConnection(object):
             # protection.
             logger.warning('Received invalid JSON from client. Ignoring.')
             return
+
+        print('Received packet: ', repr(packet))
 
         # Handle commands.
         if packet['cmd'] == 'run-command':
@@ -112,17 +125,30 @@ class ServerConnection(object):
                 for c in self.pymux.connections:
                     c.detach_and_close()
 
+            print('Create app...')
             self._create_app(color_depth=color_depth, term=term)
 
     def _send_packet(self, data):
         """
         Send packet to client.
         """
-        try:
-            self.connection.send(json.dumps(data).encode('utf-8') + b'\0')
-        except socket.error:
-            if not self._closed:
-                self.detach_and_close()
+#        import time; time.sleep(2)
+        data = json.dumps(data).encode('utf-8') + b'\0'
+
+        def send():
+            try:
+                print('sending', repr(data))
+                win32file.WriteFile(self.socket, data)
+                print('Sent')
+                #self.connection.send(json.dumps(data).encode('utf-8') + b'\0')
+            except socket.error as e:
+                print('Error sending', e)
+                if not self._closed:
+                    self.detach_and_close()
+            except Exception as e:
+                print('Error sending', e)
+
+        get_event_loop().run_in_executor(send)
 
     def _run_command(self, packet):
         """
@@ -159,7 +185,9 @@ class ServerConnection(object):
         self.client_state = self.pymux.add_client(
             input=self._pipeinput, output=output, connection=self, color_depth=color_depth)
 
+        print('Start running app...')
         future = self.client_state.app.run_async()
+        print('Start running app got future...', future)
 
         @future.add_done_callback
         def done(_):
@@ -214,6 +242,28 @@ def bind_socket(socket_name=None):
                     logger.warning('100 times failed to listen on posix socket. '
                                    'Please clean up old sockets.')
                     raise
+
+
+def bind_socket(socket_name=None):  # XXX: windows
+    socket_name = r'\\.\pipe\pymux.sock.jonathan.42'
+
+    buffsize = 65536  # TODO: XXX make smaller.
+
+    import win32con
+    import win32pipe
+    import win32security
+    sa = win32security.SECURITY_ATTRIBUTES()
+    return socket_name, win32pipe.CreateNamedPipe(
+        socket_name,  # Pipe name.
+        win32con.PIPE_ACCESS_DUPLEX | win32con.FILE_FLAG_OVERLAPPED, #win32con.PIPE_ACCESS_OUTBOUND,  # Read/write access
+        win32con.PIPE_TYPE_BYTE | win32con.PIPE_READMODE_BYTE,
+        1, # Max instances. (TODO: increase).
+        buffsize,  # Output buffer size.
+        buffsize,  # Input buffer size.
+        0,  # Client time-out.
+        sa  # Security attributes.
+    )
+#########        1, 0, 0, 0, sa)
 
 
 class _SocketStdout(object):

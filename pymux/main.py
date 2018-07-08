@@ -566,15 +566,41 @@ class Pymux(object):
             old_umask = os.umask(int('0027', 8))
             self.socket_name, self.socket = bind_socket(socket_name)
             _ = os.umask(old_umask)
-            self.socket.listen(0)
-            get_event_loop().add_reader(self.socket.fileno(), self._socket_accept)
+#            self.socket.listen(0)
+#            get_event_loop().add_reader(self.socket.fileno(), self._socket_accept)
+            print(self.socket)
+            #print(dir(self.socket))
+            get_event_loop().add_win32_handle(self.socket.handle, self._win_socket_accept)
 
         # Set session_name according to socket name.
-        if '.' in self.socket_name:
-            self.session_name = self.socket_name.rpartition('.')[-1]
+#        if '.' in self.socket_name:
+#            self.session_name = self.socket_name.rpartition('.')[-1]
 
         logger.info('Listening on %r.' % self.socket_name)
         return self.socket_name
+
+    def _win_socket_accept(self):
+        import win32pipe
+        import pywintypes
+        from .server import ServerConnection
+
+        overlapped = pywintypes.OVERLAPPED()
+
+#        hr = win32pipe.ConnectNamedPipe(self.socket, None)#overlapped)
+        hr = win32pipe.ConnectNamedPipe(self.socket, overlapped)
+
+            # TODO: right after "ConnectNamedPipe", we should listen again.
+        print('ConnectNamedPipe hr=', hr)
+        print(overlapped)
+        print(dir(overlapped))
+        print(overlapped.hEvent)
+#        input('>')
+
+        with context():
+            #connection = ServerConnection(self, hr, hr)
+            #connection = ServerConnection(self, self.socket.handle, self.socket.handle)
+            connection = ServerConnection(self, self.socket)
+            self.connections.append(connection)
 
     def _socket_accept(self):
         """

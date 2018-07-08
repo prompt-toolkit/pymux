@@ -9,7 +9,7 @@ __all__ = [
 def create_client(socket_name):
     if is_windows():
         from .windows import WindowsClient
-        return WindowsClient()
+        return WindowsClient(socket_name)
     else:
         from .posix import PosixClient
         return PosixClient(socket_name)
