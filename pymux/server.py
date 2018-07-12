@@ -4,7 +4,7 @@ import json
 import socket
 import tempfile
 
-from prompt_toolkit.eventloop import get_event_loop
+from prompt_toolkit.eventloop import get_event_loop, ensure_future, From
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.input.vt100 import PipeInput
 from prompt_toolkit.input.vt100_parser import Vt100Parser
@@ -25,13 +25,11 @@ class ServerConnection(object):
     """
     For each client that connects, we have one instance of this class.
     """
-    def __init__(self, pymux, socket):
+    def __init__(self, pymux, pipe_connection):
         self.pymux = pymux
 
-        self.socket = socket
-        self.handle = socket.handle
+        self.pipe_connection = pipe_connection
 
-        self.connection = socket.handle
         self.size = Size(rows=20, columns=80)
         self._closed = False
 
@@ -45,51 +43,47 @@ class ServerConnection(object):
         self._inputstream = Vt100Parser(feed_key)
         self._pipeinput = _ClientInput(self._send_packet)
 
-        print('add win32 handle', socket, socket.handle)
-#        if connection:  # XXX: not sure why we get '0' the first time.
-#            get_event_loop().add_win32_handle(connection, self._win_recv)
+#        print('add win32 handle', pipe_connection)
+        ensure_future(self._start_reading())
 
-        if socket.handle:  # XXX: not sure why we get '0' the first time.
-            get_event_loop().run_in_executor(self._start_reader_thread)
-
-    def _start_reader_thread(self):
+    def _start_reading(self):
         while True:
-            print('Reading')
-            num, data = win32file.ReadFile(self.socket, 4096)
-            print('Received', repr(num), repr(data))
+            print('start reading')
+            try:
+                print(self.pipe_connection)
+                print(self.pipe_connection.read)
+                data = yield From(self.pipe_connection.read())
+                print('received ', repr(data), type(data))
+                self._process(data)
+            except Exception as e:
+                import traceback; traceback.print_stack()
+                print('got exception ', e)
 
-            get_event_loop().call_from_executor(
-                partial(self._process_chunk, data))
-
-#    def _win_recv(self):
-#        print('win recv')
-#        data = win32file.ReadFile(self.connection, 4096)
-#        print('received', repr(data))
-
-    def _process_chunk(self, data):
-        """
-        Data received from the client.
-        (Parse it.)
-        """
-        if data == b'':
-            # End of file. Close connection.
-            self.detach_and_close()
-        else:
-            # Receive and process packets.
-            self._recv_buffer += data
-
-            while b'\0' in self._recv_buffer:
-                # Zero indicates end of packet.
-                pos = self._recv_buffer.index(b'\0')
-                self._process(self._recv_buffer[:pos])
-                self._recv_buffer = self._recv_buffer[pos + 1:]
-
+#    def _process_chunk(self, data):
+#        """
+#        Data received from the client.
+#        (Parse it.)
+#        """
+#        if data == b'':
+#            # End of file. Close connection.
+#            self.detach_and_close()
+#        else:
+#            # Receive and process packets.
+#            self._recv_buffer += data
+#
+#            while b'\0' in self._recv_buffer:
+#                # Zero indicates end of packet.
+#                pos = self._recv_buffer.index(b'\0')
+#                self._process(self._recv_buffer[:pos])
+#                self._recv_buffer = self._recv_buffer[pos + 1:]
+#
     def _process(self, data):
         """
         Process packet received from client.
         """
         try:
-            packet = json.loads(data.decode('utf-8'))
+#            packet = json.loads(data.decode('utf-8'))
+            packet = json.loads(data)
         except ValueError:
             # So far, this never happened. But it would be good to have some
             # protection.
@@ -132,23 +126,14 @@ class ServerConnection(object):
         """
         Send packet to client.
         """
-#        import time; time.sleep(2)
-        data = json.dumps(data).encode('utf-8') + b'\0'
+        data = json.dumps(data)
 
         def send():
             try:
-                print('sending', repr(data))
-                win32file.WriteFile(self.socket, data)
-                print('Sent')
-                #self.connection.send(json.dumps(data).encode('utf-8') + b'\0')
-            except socket.error as e:
-                print('Error sending', e)
-                if not self._closed:
-                    self.detach_and_close()
-            except Exception as e:
-                print('Error sending', e)
-
-        get_event_loop().run_in_executor(send)
+                yield From(self.pipe_connection.write(data))
+            except _BrokenPipeError:
+                pass # TODO
+        ensure_future(send())
 
     def _run_command(self, packet):
         """
@@ -200,6 +185,9 @@ class ServerConnection(object):
         self.client_state = None
         self._closed = True
 
+        # Remove from eventloop.
+        self.pipe_connection.close()
+
     def suspend_client_to_background(self):
         """
         Ask the client to suspend itself. (Like, when Ctrl-Z is pressed.)
@@ -210,60 +198,53 @@ class ServerConnection(object):
         # Remove from Pymux.
         self._close_connection()
 
-        # Remove from eventloop.
-        get_event_loop().remove_reader(self.connection.fileno())
-        self.connection.close()
+ 
+# def bind_socket(socket_name=None):
+#     """
+#     Find a socket to listen on and return it.
+# 
+#     Returns (socket_name, sock_obj)
+#     """
+#     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+# 
+#     if socket_name:
+#         s.bind(socket_name)
+#         return socket_name, s
+#     else:
+#         i = 0
+#         while True:
+#             try:
+#                 socket_name = '%s/pymux.sock.%s.%i' % (
+#                     tempfile.gettempdir(), getpass.getuser(), i)
+#                 s.bind(socket_name)
+#                 return socket_name, s
+#             except (OSError, socket.error):
+#                 i += 1
+# 
+#                 # When 100 times failed, cancel server
+#                 if i == 100:
+#                     logger.warning('100 times failed to listen on posix socket. '
+#                                    'Please clean up old sockets.')
+#                     raise
+# 
 
 
-def bind_socket(socket_name=None):
+def bind_and_listen_on_socket(socket_name, accept_callback):
     """
-    Find a socket to listen on and return it.
-
-    Returns (socket_name, sock_obj)
     """
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-
-    if socket_name:
-        s.bind(socket_name)
-        return socket_name, s
-    else:
-        i = 0
-        while True:
-            try:
-                socket_name = '%s/pymux.sock.%s.%i' % (
-                    tempfile.gettempdir(), getpass.getuser(), i)
-                s.bind(socket_name)
-                return socket_name, s
-            except (OSError, socket.error):
-                i += 1
-
-                # When 100 times failed, cancel server
-                if i == 100:
-                    logger.warning('100 times failed to listen on posix socket. '
-                                   'Please clean up old sockets.')
-                    raise
-
-
-def bind_socket(socket_name=None):  # XXX: windows
     socket_name = r'\\.\pipe\pymux.sock.jonathan.42'
+    INSTANCES = 10
+    from .win32_server import PipeInstance
+    from prompt_toolkit.eventloop import ensure_future
 
-    buffsize = 65536  # TODO: XXX make smaller.
+    pipes = [PipeInstance(socket_name, pipe_connection_cb=accept_callback)
+             for i in range(INSTANCES)]
 
-    import win32con
-    import win32pipe
-    import win32security
-    sa = win32security.SECURITY_ATTRIBUTES()
-    return socket_name, win32pipe.CreateNamedPipe(
-        socket_name,  # Pipe name.
-        win32con.PIPE_ACCESS_DUPLEX | win32con.FILE_FLAG_OVERLAPPED, #win32con.PIPE_ACCESS_OUTBOUND,  # Read/write access
-        win32con.PIPE_TYPE_BYTE | win32con.PIPE_READMODE_BYTE,
-        1, # Max instances. (TODO: increase).
-        buffsize,  # Output buffer size.
-        buffsize,  # Input buffer size.
-        0,  # Client time-out.
-        sa  # Security attributes.
-    )
-#########        1, 0, 0, 0, sa)
+    for p in pipes:
+        # Start pipe.
+        ensure_future(p.handle_pipe())
+
+    return socket_name
 
 
 class _SocketStdout(object):

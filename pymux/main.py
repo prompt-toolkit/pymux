@@ -559,19 +559,22 @@ class Pymux(object):
         Listen for clients on a Unix socket.
         Returns the socket name.
         """
-        from .server import bind_socket
+        #from .server import bind_socket
+        from .server import bind_and_listen_on_socket
         if self.socket is None:
-            # Py2 uses 0027 and Py3 uses 0o027, but both know
-            # how to create the right value from the string '0027'.
-            old_umask = os.umask(int('0027', 8))
-            self.socket_name, self.socket = bind_socket(socket_name)
-            _ = os.umask(old_umask)
-#            self.socket.listen(0)
-#            get_event_loop().add_reader(self.socket.fileno(), self._socket_accept)
-            print(self.socket)
-            #print(dir(self.socket))
-            get_event_loop().add_win32_handle(self.socket.handle, self._win_socket_accept)
+            self.socket_name = bind_and_listen_on_socket(socket_name, self._socket_accept)
 
+#            # Py2 uses 0027 and Py3 uses 0o027, but both know
+#            # how to create the right value from the string '0027'.
+#            old_umask = os.umask(int('0027', 8))
+#            self.socket_name, self.socket = bind_socket(socket_name)
+#            _ = os.umask(old_umask)
+##            self.socket.listen(0)
+##            get_event_loop().add_reader(self.socket.fileno(), self._socket_accept)
+#            print(self.socket)
+#            #print(dir(self.socket))
+#            get_event_loop().add_win32_handle(self.socket.handle, self._win_socket_accept)
+#
         # Set session_name according to socket name.
 #        if '.' in self.socket_name:
 #            self.session_name = self.socket_name.rpartition('.')[-1]
@@ -579,45 +582,31 @@ class Pymux(object):
         logger.info('Listening on %r.' % self.socket_name)
         return self.socket_name
 
-    def _win_socket_accept(self):
-        import win32pipe
-        import pywintypes
+    def _socket_accept(self, pipe_connection):
         from .server import ServerConnection
-
-        overlapped = pywintypes.OVERLAPPED()
-
-#        hr = win32pipe.ConnectNamedPipe(self.socket, None)#overlapped)
-        hr = win32pipe.ConnectNamedPipe(self.socket, overlapped)
-
-            # TODO: right after "ConnectNamedPipe", we should listen again.
-        print('ConnectNamedPipe hr=', hr)
-        print(overlapped)
-        print(dir(overlapped))
-        print(overlapped.hEvent)
-#        input('>')
 
         with context():
             #connection = ServerConnection(self, hr, hr)
             #connection = ServerConnection(self, self.socket.handle, self.socket.handle)
-            connection = ServerConnection(self, self.socket)
+            connection = ServerConnection(self, pipe_connection)
             self.connections.append(connection)
 
-    def _socket_accept(self):
-        """
-        Accept connection from client.
-        """
-        logger.info('Client attached.')
-        from .server import ServerConnection
-
-        connection, client_address = self.socket.accept()
-        # Note: We don't have to put this socket in non blocking mode.
-        #       This can cause crashes when sending big packets on OS X.
-
-        # We have to create a new `context`, because this will be the scope for
-        # a new prompt_toolkit.Application to become active.
-        with context():
-            connection = ServerConnection(self, connection, client_address)
-            self.connections.append(connection)
+#    def _socket_accept(self):
+#        """
+#        Accept connection from client.
+#        """
+#        logger.info('Client attached.')
+#        from .server import ServerConnection
+#
+#        connection, client_address = self.socket.accept()
+#        # Note: We don't have to put this socket in non blocking mode.
+#        #       This can cause crashes when sending big packets on OS X.
+#
+#        # We have to create a new `context`, because this will be the scope for
+#        # a new prompt_toolkit.Application to become active.
+#        with context():
+#            connection = ServerConnection(self, connection, client_address)
+#            self.connections.append(connection)
 
     def run_server(self):
         # Ignore keyboard. (When people run "pymux server" and press Ctrl-C.)
