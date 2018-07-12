@@ -1,9 +1,9 @@
 from ctypes.wintypes import DWORD, BOOL
 import ctypes
 #import win32
-from ctypes import windll
+from ctypes import windll, byref
 from ptterm.backends.win32_pipes import OVERLAPPED
-from prompt_toolkit.eventloop import get_event_loop, ensure_future, From, Return
+from prompt_toolkit.eventloop import get_event_loop, ensure_future, From, Return, Future
 
 BUFSIZE = 4096
 
@@ -13,6 +13,10 @@ OPEN_EXISTING = 0x3
 
 ERROR_IO_PENDING = 997
 ERROR_BROKEN_PIPE= 109
+FILE_FLAG_OVERLAPPED = 0x40000000
+
+PIPE_READMODE_MESSAGE = 0x2
+FILE_WRITE_ATTRIBUTES = 0x100  # 256 
 
 def _create_event():
     """
@@ -33,17 +37,25 @@ class PipeClient(object):
     def __init__(self, pipe_name):
         self.pipe_handle = windll.kernel32.CreateFileW(
             pipe_name,
-            DWORD(GENERIC_READ | GENERIC_WRITE),
+            DWORD(GENERIC_READ | GENERIC_WRITE | FILE_WRITE_ATTRIBUTES),
             DWORD(0),  # No sharing.
             None,  # Default security attributes.
             DWORD(OPEN_EXISTING),  # dwCreationDisposition.
-            0,  # dwFlagsAndAttributes.
+            FILE_FLAG_OVERLAPPED,  # dwFlagsAndAttributes.
             None  # hTemplateFile,
         )
 
         # TODO: handle errors.
         print('pipe handle', self.pipe_handle)
-        #if self.pipe_handle != 
+        #if self.pipe_handle != INVALID_HANDLE_VALUE: ...             # TODO!!!
+
+        dwMode = DWORD(PIPE_READMODE_MESSAGE)
+        windll.kernel32.SetNamedPipeHandleState(
+            self.pipe_handle,
+            byref(dwMode),
+            None,
+            None)
+
 
 #    def write_message(self, text):
 #        # Send a message to the pipe server.
@@ -193,3 +205,17 @@ class PipeClient(object):
 
 
 #get_event_loop().run_until_complete(ensure_future(main_coro()))
+
+
+def wait_for_event(event):
+    """
+    Wraps a win32 event into a `Future` and wait for it.
+    """
+    f = Future()
+    def ready():
+        get_event_loop().remove_win32_handle(event)
+        f.set_result(None)
+    get_event_loop().add_win32_handle(event, ready)
+    return f
+
+

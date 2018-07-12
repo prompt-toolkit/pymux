@@ -24,6 +24,7 @@ FILE_FLAG_OVERLAPPED = 0x40000000
 PIPE_TYPE_MESSAGE = 0x00000004
 PIPE_READMODE_MESSAGE = 0x00000002
 PIPE_WAIT = 0x00000000
+PIPE_NOWAIT = 0x00000001
 
 ERROR_IO_PENDING = 997
 ERROR_BROKEN_PIPE= 109
@@ -155,54 +156,60 @@ class PipeInstance(object):
         """
         print('Pipe instance read #0')
         overlapped = OVERLAPPED()
-        overlapped.hEvent = _create_event()
+        ev = _create_event(True)  # XXX: not sure about the default event value here.
+        overlapped.hEvent = ev
 
-        buff = ctypes.create_string_buffer(BUFSIZE + 1)
-        c_read = DWORD()
-        rc = DWORD()
+        try:
+            buff = ctypes.create_string_buffer(BUFSIZE + 1)
+            c_read = DWORD()
+            rc = DWORD()
 
-        print('Pipe instance read #1')
-        success = windll.kernel32.ReadFile( 
-            self.pipe_handle,
-            buff,
-            DWORD(BUFSIZE),
-            ctypes.byref(c_read),
-            ctypes.byref(overlapped))
-
-        print('Pipe instance read #2', success)
-        if success:
-            buff[c_read.value] = b'\0'
-            raise Return(buff.value.decode('utf-8', 'ignore'))
-
-        error_code = windll.kernel32.GetLastError()
-        print('Pipe instance read #3', error_code)
-        if error_code == ERROR_IO_PENDING:
-            print('Pipe instance read #4')
-            yield From(wait_for_event(overlapped.hEvent))
-            print('Pipe instance read #5')
-
-            success = windll.kernel32.GetOverlappedResult(
+            print('Pipe instance read #1', self)
+            success = windll.kernel32.ReadFile( 
                 self.pipe_handle,
-                ctypes.byref(overlapped),
+                buff,
+                DWORD(BUFSIZE),
                 ctypes.byref(c_read),
-                BOOL(False))
+                ctypes.byref(overlapped))
 
-            print('Pipe instance read #6', success)
+            print('Pipe instance read #2', success)
             if success:
                 buff[c_read.value] = b'\0'
                 raise Return(buff.value.decode('utf-8', 'ignore'))
 
-            else:
-                error_code = windll.kernel32.GetLastError()
-                if error_code == ERROR_BROKEN_PIPE:
-                    print('Overlapped Read failed, broken pipe.')
-                    raise _BrokenPipeError
-                else:
-                    raise Exception('reading overlapped IO failed.')
+            error_code = windll.kernel32.GetLastError()
+            print('Pipe instance read #3', error_code)
+            if error_code == ERROR_IO_PENDING:
+                print('Pipe instance read #4')
+                yield From(wait_for_event(ev))
+                print('Pipe instance read #5')
 
-        elif error_code == ERROR_BROKEN_PIPE:
-            print('Read failed, broken pipe.')
-            raise _BrokenPipeError
+                success = windll.kernel32.GetOverlappedResult(
+                    self.pipe_handle,
+                    ctypes.byref(overlapped),
+                    ctypes.byref(c_read),
+                    BOOL(False))
+
+                print('Pipe instance read #6', success)
+                if success:
+                    buff[c_read.value] = b'\0'
+                    raise Return(buff.value.decode('utf-8', 'ignore'))
+
+                else:
+                    error_code = windll.kernel32.GetLastError()
+                    if error_code == ERROR_BROKEN_PIPE:
+                        print('Overlapped Read failed, broken pipe.')
+                        raise _BrokenPipeError
+                    else:
+                        raise Exception('reading overlapped IO failed.')
+
+            elif error_code == ERROR_BROKEN_PIPE:
+                print('Read failed, broken pipe.')
+                raise _BrokenPipeError
+
+        finally:
+            # Release event.
+            windll.kernel32.CloseHandle(overlapped.hEvent)
 
     def write(self, text):
         """
@@ -212,39 +219,44 @@ class PipeInstance(object):
         overlapped.hEvent = _create_event()
         c_written = DWORD()
 
-        data = text.encode('utf-8')
+        try:
+            data = text.encode('utf-8')
 
-        success = windll.kernel32.WriteFile(
-            self.pipe_handle,
-            ctypes.create_string_buffer(data),
-            len(data),
-            ctypes.byref(c_written),
-            ctypes.byref(overlapped))
-
-        if success:
-            return
-
-        error_code = windll.kernel32.GetLastError()
-        if error_code == ERROR_IO_PENDING:
-            yield From(wait_for_event(overlapped.hEvent))
-
-            success = windll.kernel32.GetOverlappedResult(
+            success = windll.kernel32.WriteFile(
                 self.pipe_handle,
-                ctypes.byref(overlapped),
+                ctypes.create_string_buffer(data),
+                len(data),
                 ctypes.byref(c_written),
-                BOOL(False))
+                ctypes.byref(overlapped))
 
-            if not success:
-                error_code = windll.kernel32.GetLastError()
-                if error_code == ERROR_BROKEN_PIPE:
-                    print('Overlapped Write failed, broken pipe.')
-                    raise _BrokenPipeError
-                else:
-                    raise 'Writing overlapped IO failed.'
+            if success:
+                return
 
-        elif error_code == ERROR_BROKEN_PIPE:
-            print('Write failed, broken pipe.')
-            raise _BrokenPipeError
+            error_code = windll.kernel32.GetLastError()
+            if error_code == ERROR_IO_PENDING:
+                yield From(wait_for_event(overlapped.hEvent))
+
+                success = windll.kernel32.GetOverlappedResult(
+                    self.pipe_handle,
+                    ctypes.byref(overlapped),
+                    ctypes.byref(c_written),
+                    BOOL(False))
+
+                if not success:
+                    error_code = windll.kernel32.GetLastError()
+                    if error_code == ERROR_BROKEN_PIPE:
+                        print('Overlapped Write failed, broken pipe.')
+                        raise _BrokenPipeError
+                    else:
+                        raise 'Writing overlapped IO failed.'
+
+            elif error_code == ERROR_BROKEN_PIPE:
+                print('Write failed, broken pipe.')
+                raise _BrokenPipeError
+
+        finally:
+            # Release event.
+            windll.kernel32.CloseHandle(overlapped.hEvent)
 
 
 class _BrokenPipeError(Exception):
@@ -263,14 +275,14 @@ def wait_for_event(event):
     return f
 
 
-def _create_event():
+def _create_event(initial_state=True):
     """
     Create Win32 event.
     """
     event = windll.kernel32.CreateEventA(
         None,  # Default security attributes.
         BOOL(True),  # Manual reset event.
-        BOOL(True),  # Initial state = signaled.
+        BOOL(initial_state),  # Initial state = signaled.
         None  # Unnamed event object.
     )
     if not event:
