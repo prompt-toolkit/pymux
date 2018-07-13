@@ -94,7 +94,6 @@ def read_message_bytes_from_pipe(pipe_handle):
     try:
         buff = create_string_buffer(BUFSIZE + 1)
         c_read = DWORD()
-        rc = DWORD()
 
         success = windll.kernel32.ReadFile( 
             pipe_handle,

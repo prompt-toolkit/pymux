@@ -1,6 +1,6 @@
 from ctypes import windll, byref
-from ctypes.wintypes import BOOL, DWORD, HANDLE
-from prompt_toolkit.eventloop import get_event_loop, ensure_future, From, Future, Return
+from ctypes.wintypes import DWORD
+from prompt_toolkit.eventloop import From, Future, Return
 from ptterm.backends.win32_pipes import OVERLAPPED
 
 from .win32 import wait_for_event, create_event, read_message_from_pipe, write_message_to_pipe

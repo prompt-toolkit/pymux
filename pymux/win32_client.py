@@ -1,3 +1,4 @@
+from ctypes import windll
 from .win32 import read_message_from_pipe, wait_for_event, write_message_to_pipe, connect_to_pipe
 from prompt_toolkit.eventloop import From, Return
 
@@ -25,5 +26,5 @@ class PipeClient(object):
         message = yield From(read_message_from_pipe(self.pipe_handle))
         raise Return(message)
 
-    def close():
-        win32.CloseHandle(self.pipe_handle)
+    def close(self):
+        windll.kernel32.CloseHandle(self.pipe_handle)
