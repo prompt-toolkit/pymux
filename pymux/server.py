@@ -59,24 +59,6 @@ class ServerConnection(object):
                 import traceback; traceback.print_stack()
                 print('got exception ', e)
 
-#    def _process_chunk(self, data):
-#        """
-#        Data received from the client.
-#        (Parse it.)
-#        """
-#        if data == b'':
-#            # End of file. Close connection.
-#            self.detach_and_close()
-#        else:
-#            # Receive and process packets.
-#            self._recv_buffer += data
-#
-#            while b'\0' in self._recv_buffer:
-#                # Zero indicates end of packet.
-#                pos = self._recv_buffer.index(b'\0')
-#                self._process(self._recv_buffer[:pos])
-#                self._recv_buffer = self._recv_buffer[pos + 1:]
-#
     def _process(self, data):
         """
         Process packet received from client.

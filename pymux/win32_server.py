@@ -4,6 +4,7 @@ from prompt_toolkit.eventloop import get_event_loop, ensure_future, From, Future
 from ptterm.backends.win32_pipes import OVERLAPPED
 
 from .win32 import wait_for_event, create_event, read_message_from_pipe, write_message_to_pipe
+from .log import logger
 
 INSTANCES = 10
 BUFSIZE = 4096
@@ -89,21 +90,19 @@ class PipeInstance(object):
         while True:
             try:
                 # Wait for connection.
-                print('wait for connection')
+                logger.info('Waiting for connection in pipe instance.')
                 yield From(self._connect_client())
-                print('connected')
+                logger.info('Connected in pipe instance')
 
                 conn = Win32PipeConnection(self)
-                print('connected cb')
                 self.pipe_connection_cb(conn)
-                print('connected cb done, wait for done_f')
 
                 yield From(conn.done_f)
-                print('connected cb done, done_f done')
+                logger.info('Pipe instance done.')
 
             finally:
                 # Disconnect and reconnect.
-                print('disconnect')
+                logger.info('Disconnecting pipe instance.')
                 windll.kernel32.DisconnectNamedPipe(self.pipe_handle)
 
     def _connect_client(self):

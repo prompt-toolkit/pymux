@@ -129,7 +129,7 @@ def read_message_bytes_from_pipe(pipe_handle):
                     raise _BrokenPipeError
 
                 elif error_code == ERROR_MORE_DATA:
-                    more_data = yield From(read_message_bytes_from_pipe())
+                    more_data = yield From(read_message_bytes_from_pipe(pipe_handle))
                     raise Return(buff.value + more_data)
                 else:
                     raise Exception(
@@ -140,7 +140,7 @@ def read_message_bytes_from_pipe(pipe_handle):
             raise _BrokenPipeError
 
         elif error_code == ERROR_MORE_DATA:
-            more_data = yield From(read_message_bytes_from_pipe())
+            more_data = yield From(read_message_bytes_from_pipe(pipe_handle))
             raise Return(buff.value + more_data)
 
         else:
