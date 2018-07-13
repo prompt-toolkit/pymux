@@ -1,9 +1,8 @@
+from ctypes import windll, byref, create_string_buffer
 from ctypes.wintypes import DWORD, BOOL
-import ctypes
-#import win32
-from ctypes import windll, byref
-from ptterm.backends.win32_pipes import OVERLAPPED
 from prompt_toolkit.eventloop import get_event_loop, ensure_future, From, Return, Future
+from ptterm.backends.win32_pipes import OVERLAPPED
+import ctypes
 
 BUFSIZE = 4096
 
@@ -18,6 +17,8 @@ FILE_FLAG_OVERLAPPED = 0x40000000
 
 PIPE_READMODE_MESSAGE = 0x2
 FILE_WRITE_ATTRIBUTES = 0x100  # 256 
+INVALID_HANDLE_VALUE = -1
+
 
 def _create_event():
     """
@@ -45,10 +46,8 @@ class PipeClient(object):
             FILE_FLAG_OVERLAPPED,  # dwFlagsAndAttributes.
             None  # hTemplateFile,
         )
-
-        # TODO: handle errors.
-#        print('pipe handle', self.pipe_handle)
-        #if self.pipe_handle != INVALID_HANDLE_VALUE: ...             # TODO!!!
+        if self.pipe_handle == INVALID_HANDLE_VALUE:
+            raise Exception('Invalid handle. Connecting to pipe %r failed.' % pipe_name)
 
         dwMode = DWORD(PIPE_READMODE_MESSAGE)
         windll.kernel32.SetNamedPipeHandleState(
@@ -57,88 +56,46 @@ class PipeClient(object):
             None,
             None)
 
-
-#    def write_message(self, text):
-#        # Send a message to the pipe server.
-#        message = text.encode('utf-8')
-#        rc = DWORD()
-#
-#        fSuccess = windll.kernel32.WriteFile(
-#            self.pipe_handle,
-#            ctypes.create_string_buffer(message),
-#            len(message),
-#            ctypes.byref(rc),
-#            None)  # Not overlapped.
-#
-#        if not fSuccess:
-#            print('WriteFile failed.', win32api.GetLastError())
-#            return
-
     def write_message(self, text):
         """
         (coroutine)
         Write data into the pipe.
         """
-#        print('PipeClient.write_message #0')
         overlapped = OVERLAPPED()
         overlapped.hEvent = _create_event()
         c_written = DWORD()
 
         data = text.encode('utf-8')
-#        print('PipeClient.write_message #1')
 
         success = windll.kernel32.WriteFile(
             self.pipe_handle,
-            ctypes.create_string_buffer(data),
+            create_string_buffer(data),
             len(data),
-            ctypes.byref(c_written),
-            ctypes.byref(overlapped))
+            byref(c_written),
+            byref(overlapped))
 
-#        print('PipeClient.write_message #2', success)
         if success:
             return
 
         error_code = windll.kernel32.GetLastError()
-#        print('PipeClient.write_message #3', error_code)
         if error_code == ERROR_IO_PENDING:
             yield From(wait_for_event(overlapped.hEvent))
 
             success = windll.kernel32.GetOverlappedResult(
                 self.pipe_handle,
-                ctypes.byref(overlapped),
-                ctypes.byref(c_written),
+                byref(overlapped),
+                byref(c_written),
                 BOOL(False))
 
             if not success:
                 error_code = windll.kernel32.GetLastError()
                 if error_code == ERROR_BROKEN_PIPE:
-#                    print('Overlapped Write failed, broken pipe.')
                     raise _BrokenPipeError
                 else:
                     raise 'Writing overlapped IO failed.'
 
         elif error_code == ERROR_BROKEN_PIPE:
-#            print('Write failed, broken pipe.')
             raise _BrokenPipeError
-
-
-#    def read_message(self):
-#        # Get response.
-#        buff = ctypes.create_string_buffer(BUFSIZE)
-#        c_read = DWORD()
-#
-#        print('call readfile')
-#        success = windll.kernel32.ReadFile( 
-#            self.pipe_handle,
-#            buff,
-#            DWORD(BUFSIZE),
-#            ctypes.byref(c_read),
-#            None)  # Not overlapped.
-#
-#        if success:
-#            buff[c_read.value] = b'\0'
-#            return buff.value.decode('utf-8', 'ignore')
-#        # TODO: handle ERROR_MORE_DATA
 
     def read_message(self):
         """
@@ -151,67 +108,54 @@ class PipeClient(object):
     def _read_message_bytes(self):
         """
         (coroutine)
-        Read data from this pipe.
+        Read message from this pipe. Return bytes.
         """
-#        print('PipeClient.read_message')
         overlapped = OVERLAPPED()
         overlapped.hEvent = _create_event()
 
-#        print('PipeClient.read_message #2')
-        buff = ctypes.create_string_buffer(BUFSIZE + 1)
+        buff = create_string_buffer(BUFSIZE + 1)
         c_read = DWORD()
         rc = DWORD()
 
-#        print('PipeClient.read_message #3')
         success = windll.kernel32.ReadFile( 
             self.pipe_handle,
             buff,
             DWORD(BUFSIZE),
-            ctypes.byref(c_read),
-            ctypes.byref(overlapped))
+            byref(c_read),
+            byref(overlapped))
 
-#        print('reading', success)
         if success:
             buff[c_read.value] = b'\0'
             raise Return(buff.value)
 
         error_code = windll.kernel32.GetLastError()
-#        print('err', error_code)
+
         if error_code == ERROR_IO_PENDING:
             yield From(wait_for_event(overlapped.hEvent))
 
             success = windll.kernel32.GetOverlappedResult(
                 self.pipe_handle,
-                ctypes.byref(overlapped),
-                ctypes.byref(c_read),
+                byref(overlapped),
+                byref(c_read),
                 BOOL(False))
 
             if success:
                 buff[c_read.value] = b'\0'
-#                print('received', buff.value)
                 raise Return(buff.value)
 
             else:
                 error_code = windll.kernel32.GetLastError()
                 if error_code == ERROR_BROKEN_PIPE:
-#                    print('Overlapped Read failed, broken pipe.')
                     raise _BrokenPipeError
                 elif error_code == ERROR_MORE_DATA:
-#                    print('ERRRO_MORE_DATA')
 
                     more_data = yield From(self._read_message_bytes())
-#                    if more_data is None:
-#                        more_data = ''  # XXX: why does this happen????
                     raise Return(buff.value + more_data)
-                    pass  # XXX
-                # XXX: use utf8decoder...
-
                 else:
                     raise Exception(
                         'reading overlapped IO failed. error_code=%r' % error_code)
 
         elif error_code == ERROR_BROKEN_PIPE:
-#            print('Read failed, broken pipe.')
             raise _BrokenPipeError
 
         elif error_code == ERROR_MORE_DATA:
@@ -221,19 +165,8 @@ class PipeClient(object):
         else:
             raise Exception('Reading pipe failed, error_code=%s' % error_code)
 
-
     def close():
         win32.CloseHandle(self.pipe_handle)
-
-#def main_coro():
-#    pipe_name = r'\\.\pipe\pymux.sock.jonathan.9942'
-#    pipe_client = PipeClient(pipe_name)
-#    yield From(pipe_client.write_message('Hi there'))
-#    result = yield From(pipe_client.read_message())
-#    print('result', repr(result))
-
-
-#get_event_loop().run_until_complete(ensure_future(main_coro()))
 
 
 def wait_for_event(event):
