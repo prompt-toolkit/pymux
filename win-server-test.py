@@ -141,7 +141,9 @@ class PipeInstance(object):
 
         error_code = windll.kernel32.GetLastError()
         if error_code == ERROR_IO_PENDING:
+            print('wait for event')
             yield From(wait_for_event(overlapped.hEvent))
+            print('done wait for event')
 
             success = windll.kernel32.GetOverlappedResult(
                 self.pipe_handle,

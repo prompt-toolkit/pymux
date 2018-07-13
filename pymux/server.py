@@ -4,10 +4,10 @@ import json
 import socket
 import tempfile
 
-from prompt_toolkit.eventloop import get_event_loop, ensure_future, From
 from prompt_toolkit.application.current import set_app
-from prompt_toolkit.input.vt100 import PipeInput
+from prompt_toolkit.eventloop import get_event_loop, ensure_future, From
 from prompt_toolkit.input.vt100_parser import Vt100Parser
+from prompt_toolkit.input.win32_pipe import Win32PipeInput
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.output.vt100 import Vt100_Output
 from functools import partial
@@ -126,6 +126,7 @@ class ServerConnection(object):
         """
         Send packet to client.
         """
+        print('send packet', data)
         data = json.dumps(data)
 
         def send():
@@ -176,6 +177,8 @@ class ServerConnection(object):
 
         @future.add_done_callback
         def done(_):
+            print('APP DONE.........')
+            print(future.result())
             self._close_connection()
 
     def _close_connection(self):
@@ -266,7 +269,7 @@ class _SocketStdout(object):
         self._buffer = []
 
 
-class _ClientInput(PipeInput):
+class _ClientInput(Win32PipeInput):
     """
     Input class that can be given to the CommandLineInterface.
     We only need this for turning the client into raw_mode/cooked_mode.

@@ -67,7 +67,9 @@ class WindowsClient(Client):
         while True:
             message = yield From(self.pipe.read_message())
 #            print('Received from pipe: ', repr(message))
-            self._process(message)
+#            print('start process')
+            self._process(message)   #XXX: uncomment!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+#            print('end process')
 
     def _process(self, data_buffer):
         """
@@ -114,20 +116,20 @@ class WindowsClient(Client):
             #     cm.__exit__()
 
     def _input_ready(self):
-        print('Input ready')
+#        print('Input ready')
         keys = self._input.read_keys()
-        print('Received input', repr(keys))
+#        print('Received input', repr(keys))
         if keys:
             self._send_packet({
                 'cmd': 'in',
                 'data': ''.join(key_press.data for key_press in keys),
             })
-        else:
-            print('sending nothing, no keys received')
+#        else:
+#            print('sending nothing, no keys received')
 
     def _send_packet(self, data):
         " Send to server. "
-        print('sending packet', repr(data))
+#        print('sending packet', repr(data))
         data = json.dumps(data)
         ensure_future(self.pipe.write_message(data))
 
