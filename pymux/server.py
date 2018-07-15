@@ -6,7 +6,7 @@ import socket
 import tempfile
 
 from prompt_toolkit.application.current import set_app
-from prompt_toolkit.eventloop import get_event_loop, ensure_future, From
+from prompt_toolkit.eventloop import ensure_future, From
 from prompt_toolkit.eventloop.context import context
 from prompt_toolkit.input.vt100_parser import Vt100Parser
 from prompt_toolkit.layout.screen import Size
@@ -59,6 +59,7 @@ class ServerConnection(object):
             except Exception as e:
                 import traceback; traceback.print_stack()
                 print('got exception ', repr(e))
+                break
 
     def _process(self, data):
         """

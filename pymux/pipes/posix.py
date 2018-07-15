@@ -88,6 +88,7 @@ class PosixSocketConnection(PipeConnection):
     """
     def __init__(self, socket):
         self.socket = socket
+        self._fd = socket.fileno()
         self._recv_buffer = b''
 
     def read(self):
@@ -125,6 +126,9 @@ class PosixSocketConnection(PipeConnection):
         Close connection.
         """
         self.socket.close()
+
+        # Make sure to remove the reader from the event loop.
+        get_event_loop().remove_reader(self._fd)
 
 
 def _read_chunk_from_socket(socket):
