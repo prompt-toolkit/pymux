@@ -1,19 +1,20 @@
 from __future__ import unicode_literals
 import getpass
 import json
+import os
 import socket
 import tempfile
 
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.eventloop import get_event_loop, ensure_future, From
+from prompt_toolkit.eventloop.context import context
 from prompt_toolkit.input.vt100_parser import Vt100Parser
-from prompt_toolkit.input.win32_pipe import Win32PipeInput
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.output.vt100 import Vt100_Output
+from prompt_toolkit.utils import is_windows
 from functools import partial
 
 from .log import logger
-import win32file
 
 __all__ = (
     'ServerConnection',
@@ -43,17 +44,12 @@ class ServerConnection(object):
         self._inputstream = Vt100Parser(feed_key)
         self._pipeinput = _ClientInput(self._send_packet)
 
-#        print('add win32 handle', pipe_connection)
         ensure_future(self._start_reading())
 
     def _start_reading(self):
         while True:
-            print('start reading')
             try:
-                print(self.pipe_connection)
-                print(self.pipe_connection.read)
                 data = yield From(self.pipe_connection.read())
-                print('received ', repr(data), type(data))
                 self._process(data)
             except Exception as e:
                 import traceback; traceback.print_stack()
@@ -64,15 +60,12 @@ class ServerConnection(object):
         Process packet received from client.
         """
         try:
-#            packet = json.loads(data.decode('utf-8'))
             packet = json.loads(data)
         except ValueError:
             # So far, this never happened. But it would be good to have some
             # protection.
             logger.warning('Received invalid JSON from client. Ignoring.')
             return
-
-        print('Received packet: ', repr(packet))
 
         # Handle commands.
         if packet['cmd'] == 'run-command':
@@ -108,7 +101,6 @@ class ServerConnection(object):
         """
         Send packet to client.
         """
-        print('send packet', data)
         data = json.dumps(data)
 
         def send():
@@ -183,53 +175,6 @@ class ServerConnection(object):
         # Remove from Pymux.
         self._close_connection()
 
- 
-# def bind_socket(socket_name=None):
-#     """
-#     Find a socket to listen on and return it.
-# 
-#     Returns (socket_name, sock_obj)
-#     """
-#     s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-# 
-#     if socket_name:
-#         s.bind(socket_name)
-#         return socket_name, s
-#     else:
-#         i = 0
-#         while True:
-#             try:
-#                 socket_name = '%s/pymux.sock.%s.%i' % (
-#                     tempfile.gettempdir(), getpass.getuser(), i)
-#                 s.bind(socket_name)
-#                 return socket_name, s
-#             except (OSError, socket.error):
-#                 i += 1
-# 
-#                 # When 100 times failed, cancel server
-#                 if i == 100:
-#                     logger.warning('100 times failed to listen on posix socket. '
-#                                    'Please clean up old sockets.')
-#                     raise
-# 
-
-
-def bind_and_listen_on_socket(socket_name, accept_callback):
-    """
-    """
-    socket_name = r'\\.\pipe\pymux.sock.jonathan.42'
-    INSTANCES = 10
-    from .win32_server import PipeInstance
-    from prompt_toolkit.eventloop import ensure_future
-
-    pipes = [PipeInstance(socket_name, pipe_connection_cb=accept_callback)
-             for i in range(INSTANCES)]
-
-    for p in pipes:
-        # Start pipe.
-        ensure_future(p.handle_pipe())
-
-    return socket_name
 
 
 class _SocketStdout(object):
@@ -251,7 +196,12 @@ class _SocketStdout(object):
         self._buffer = []
 
 
-class _ClientInput(Win32PipeInput):
+if is_windows():
+    from prompt_toolkit.input.win32_pipe import Win32PipeInput as PipeInput
+else:
+    from prompt_toolkit.input.posix_pipe import PosixPipeInput as PipeInput
+
+class _ClientInput(PipeInput):
     """
     Input class that can be given to the CommandLineInterface.
     We only need this for turning the client into raw_mode/cooked_mode.

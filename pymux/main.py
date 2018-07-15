@@ -15,7 +15,6 @@ from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.output.defaults import create_output
 
-from .style import ui_style
 from .arrangement import Arrangement, Pane, Window
 from .commands.commands import handle_command, call_command_handler
 from .commands.completer import create_command_completer
@@ -24,7 +23,10 @@ from .key_bindings import PymuxKeyBindings
 from .layout import LayoutManager, Justify
 from .log import logger
 from .options import ALL_OPTIONS, ALL_WINDOW_OPTIONS
+from .pipes import bind_and_listen_on_socket
 from .rc import STARTUP_COMMANDS
+from .server import ServerConnection
+from .style import ui_style
 from .utils import get_default_shell
 from ptterm import Terminal
 
@@ -559,54 +561,22 @@ class Pymux(object):
         Listen for clients on a Unix socket.
         Returns the socket name.
         """
-        #from .server import bind_socket
-        from .server import bind_and_listen_on_socket
-        if self.socket is None:
-            self.socket_name = bind_and_listen_on_socket(socket_name, self._socket_accept)
+        def connection_cb(pipe_connection):
+            # We have to create a new `context`, because this will be the scope for
+            # a new prompt_toolkit.Application to become active.
+            with context():
+                connection = ServerConnection(self, pipe_connection)
 
-#            # Py2 uses 0027 and Py3 uses 0o027, but both know
-#            # how to create the right value from the string '0027'.
-#            old_umask = os.umask(int('0027', 8))
-#            self.socket_name, self.socket = bind_socket(socket_name)
-#            _ = os.umask(old_umask)
-##            self.socket.listen(0)
-##            get_event_loop().add_reader(self.socket.fileno(), self._socket_accept)
-#            print(self.socket)
-#            #print(dir(self.socket))
-#            get_event_loop().add_win32_handle(self.socket.handle, self._win_socket_accept)
-#
+            self.connections.append(connection)
+
+        self.socket_name = bind_and_listen_on_socket(socket_name, connection_cb)
+
         # Set session_name according to socket name.
 #        if '.' in self.socket_name:
 #            self.session_name = self.socket_name.rpartition('.')[-1]
 
         logger.info('Listening on %r.' % self.socket_name)
         return self.socket_name
-
-    def _socket_accept(self, pipe_connection):
-        from .server import ServerConnection
-
-        with context():
-            #connection = ServerConnection(self, hr, hr)
-            #connection = ServerConnection(self, self.socket.handle, self.socket.handle)
-            connection = ServerConnection(self, pipe_connection)
-            self.connections.append(connection)
-
-#    def _socket_accept(self):
-#        """
-#        Accept connection from client.
-#        """
-#        logger.info('Client attached.')
-#        from .server import ServerConnection
-#
-#        connection, client_address = self.socket.accept()
-#        # Note: We don't have to put this socket in non blocking mode.
-#        #       This can cause crashes when sending big packets on OS X.
-#
-#        # We have to create a new `context`, because this will be the scope for
-#        # a new prompt_toolkit.Application to become active.
-#        with context():
-#            connection = ServerConnection(self, connection, client_address)
-#            self.connections.append(connection)
 
     def run_server(self):
         # Ignore keyboard. (When people run "pymux server" and press Ctrl-C.)

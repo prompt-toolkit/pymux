@@ -13,7 +13,7 @@ import json
 import os
 import sys
 
-from ..win32_client import PipeClient
+from ..pipes.win32_client import PipeClient
 from .base import Client
 
 __all__ = [

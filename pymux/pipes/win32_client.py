@@ -1,5 +1,5 @@
 from ctypes import windll
-from .win32 import read_message_from_pipe, wait_for_event, write_message_to_pipe, connect_to_pipe
+from .win32 import read_message_from_pipe, write_message_to_pipe, connect_to_pipe
 from prompt_toolkit.eventloop import From, Return
 
 __all__ = [

@@ -1,10 +1,17 @@
 from ctypes import windll, byref
 from ctypes.wintypes import DWORD
-from prompt_toolkit.eventloop import From, Future, Return
+from prompt_toolkit.eventloop import From, Future, Return, ensure_future
 from ptterm.backends.win32_pipes import OVERLAPPED
 
 from .win32 import wait_for_event, create_event, read_message_from_pipe, write_message_to_pipe
 from .log import logger
+
+__all__ = [
+    'bind_and_listen_on_win32_socket',
+    'Win32PipeConnection',
+    'PipeInstance',
+]
+
 
 INSTANCES = 10
 BUFSIZE = 4096
@@ -25,6 +32,21 @@ ERROR_NO_DATA = 232
 CONNECTING_STATE = 0
 READING_STATE = 1
 WRITING_STATE = 2
+
+
+def bind_and_listen_on_win32_socket(socket_name, accept_callback):
+    """
+    """
+    socket_name = r'\\.\pipe\pymux.sock.jonathan.42'
+
+    pipes = [PipeInstance(socket_name, pipe_connection_cb=accept_callback)
+             for i in range(INSTANCES)]
+
+    for p in pipes:
+        # Start pipe.
+        ensure_future(p.handle_pipe())
+
+    return socket_name
 
 
 class Win32PipeConnection(object):
