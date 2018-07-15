@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
-from ctypes import byref
-from ctypes import windll
+from ctypes import byref, windll
 from ctypes.wintypes import DWORD
 from prompt_toolkit.eventloop import ensure_future, From
 from prompt_toolkit.eventloop import get_event_loop

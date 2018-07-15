@@ -1,6 +1,7 @@
 """
 Common Win32 pipe operations.
 """
+from __future__ import unicode_literals
 from ctypes import windll, byref, create_string_buffer
 from ctypes.wintypes import DWORD, BOOL
 from prompt_toolkit.eventloop import get_event_loop, From, Return, Future
@@ -20,8 +21,8 @@ GENERIC_READ = 0x80000000
 GENERIC_WRITE = 0x40000000
 OPEN_EXISTING = 0x3
 
-ERROR_IO_PENDING = 997
 ERROR_BROKEN_PIPE = 109
+ERROR_IO_PENDING = 997
 ERROR_MORE_DATA = 234 
 ERROR_NO_DATA = 232
 FILE_FLAG_OVERLAPPED = 0x40000000

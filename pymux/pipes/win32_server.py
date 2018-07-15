@@ -1,9 +1,11 @@
+from __future__ import unicode_literals
 from ctypes import windll, byref
 from ctypes.wintypes import DWORD
 from prompt_toolkit.eventloop import From, Future, Return, ensure_future
 from ptterm.backends.win32_pipes import OVERLAPPED
 
 from .win32 import wait_for_event, create_event, read_message_from_pipe, write_message_to_pipe
+from .base import PipeConnection, BrokenPipeError
 from ..log import logger
 
 __all__ = [
@@ -36,7 +38,10 @@ WRITING_STATE = 2
 
 def bind_and_listen_on_win32_socket(socket_name, accept_callback):
     """
+    :param accept_callback: Called with `Win32PipeConnection` when a new
+        connection is established.
     """
+    assert callable(accept_callback)
     socket_name = r'\\.\pipe\pymux.sock.jonathan.42'
 
     pipes = [PipeInstance(socket_name, pipe_connection_cb=accept_callback)
@@ -49,29 +54,41 @@ def bind_and_listen_on_win32_socket(socket_name, accept_callback):
     return socket_name
 
 
-class Win32PipeConnection(object):
+class Win32PipeConnection(PipeConnection):
+    """
+    A single active Win32 pipe connection on the server side.
+    """
     def __init__(self, pipe_instance):
+        assert isinstance(pipe_instance, PipeInstance)
         self.pipe_instance = pipe_instance
         self.done_f = Future()
 
     def read(self):
+        """
+        (coroutine)
+        Read a single message from the pipe. (Return as text.)
+        """
         if self.done_f.done():
-            raise _BrokenPipeError
+            raise BrokenPipeError
 
         try:
             result = yield From(read_message_from_pipe(self.pipe_instance.pipe_handle))
             raise Return(result)
-        except _BrokenPipeError:
+        except BrokenPipeError:
             self.done_f.set_result(None)
             raise
 
     def write(self, message):
+        """
+        (coroutine)
+        Write a single message into the pipe.
+        """
         if self.done_f.done():
-            raise _BrokenPipeError
+            raise BrokenPipeError
 
         try:
             yield From(write_message_to_pipe(self.pipe_instance.pipe_handle, message))
-        except _BrokenPipeError:
+        except BrokenPipeError:
             self.done_f.set_result(None)
             raise
 
@@ -151,7 +168,3 @@ class PipeInstance(object):
 
             else:
                 raise Exception('connect failed with error code' + str(last_error))
-
-
-class _BrokenPipeError(Exception):
-    pass

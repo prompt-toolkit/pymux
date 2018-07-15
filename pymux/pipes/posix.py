@@ -1,10 +1,14 @@
-from prompt_toolkit.eventloop import From, Return, Future, get_event_loop
+from __future__ import unicode_literals
 import getpass
 import os
 import six
 import socket
 import tempfile
+
+from prompt_toolkit.eventloop import From, Return, Future, get_event_loop
+
 from ..log import logger
+from .base import PipeConnection, BrokenPipeError
 
 __all__ = [
     'bind_and_listen_on_posix_socket',
@@ -14,6 +18,8 @@ __all__ = [
 
 def bind_and_listen_on_posix_socket(socket_name, accept_callback):
     """
+    :param accept_callback: Called with `PosixSocketConnection` when a new
+        connection is established.
     """
     assert socket_name is None or isinstance(socket_name, six.text_type)
     assert callable(accept_callback)
@@ -29,8 +35,6 @@ def bind_and_listen_on_posix_socket(socket_name, accept_callback):
 
     # Listen on socket.
     socket.listen(0)
-
-    from .posix import PosixSocketConnection
 
     def _accept_cb():
         connection, client_address = socket.accept()
@@ -78,15 +82,18 @@ def _bind_posix_socket(socket_name=None):
                     raise
 
 
-class PosixSocketConnection(object):
+class PosixSocketConnection(PipeConnection):
+    """
+    A single active posix pipe connection on the server side.
+    """
     def __init__(self, socket):
         self.socket = socket
-
         self._recv_buffer = b''
 
     def read(self):
-        """
+        r"""
         Coroutine that reads the next packet.
+        (Packets are \0 separated.)
         """
         while True:
             self._recv_buffer += yield From(_read_chunk_from_socket(self.socket))
@@ -109,20 +116,15 @@ class PosixSocketConnection(object):
             self.socket.send(message.encode('utf-8') + b'\0')
         except socket.error:
             if not self._closed:
-                self.detach_and_close()
+                raise BrokenPipeError
 
         return Future.succeed(None)
 
-    def detach_and_close(self): # XXX
-        # Remove from Pymux.
-        self._close_connection()
-
-        # Remove from eventloop.
-        get_event_loop().remove_reader(self.socket.fileno())
-        self.socket.close()
-
     def close(self):
-        pass # TODO
+        """
+        Close connection.
+        """
+        self.socket.close()
 
 
 def _read_chunk_from_socket(socket):
@@ -152,7 +154,7 @@ def _read_chunk_from_socket(socket):
         if data:
             f.set_result(data)
         else:
-            f.set_exception(EOFError)  # XXX
+            f.set_exception(BrokenPipeError)
 
     get_event_loop().add_reader(fd, read_callback)
 
