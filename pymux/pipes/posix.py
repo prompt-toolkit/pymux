@@ -95,17 +95,17 @@ class PosixSocketConnection(PipeConnection):
         Coroutine that reads the next packet.
         (Packets are \0 separated.)
         """
-        while True:
+        # Read until we have a \0 in our buffer.
+        while b'\0' not in self._recv_buffer:
             self._recv_buffer += yield From(_read_chunk_from_socket(self.socket))
 
-            if b'\0' in self._recv_buffer:
-                # Zero indicates end of packet.
-                pos = self._recv_buffer.index(b'\0')
+        # Split on the first separator.
+        pos = self._recv_buffer.index(b'\0')
 
-                packet = self._recv_buffer[:pos]
-                self._recv_buffer = self._recv_buffer[pos + 1:]
+        packet = self._recv_buffer[:pos]
+        self._recv_buffer = self._recv_buffer[pos + 1:]
 
-                raise Return(packet)
+        raise Return(packet)
 
 
     def write(self, message):
