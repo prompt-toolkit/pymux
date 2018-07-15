@@ -4,7 +4,7 @@ from prompt_toolkit.eventloop import From, Future, Return, ensure_future
 from ptterm.backends.win32_pipes import OVERLAPPED
 
 from .win32 import wait_for_event, create_event, read_message_from_pipe, write_message_to_pipe
-from .log import logger
+from ..log import logger
 
 __all__ = [
     'bind_and_listen_on_win32_socket',
