@@ -15,6 +15,7 @@ from prompt_toolkit.utils import is_windows
 from functools import partial
 
 from .log import logger
+from .pipes import BrokenPipeError
 
 __all__ = (
     'ServerConnection',
@@ -51,9 +52,13 @@ class ServerConnection(object):
             try:
                 data = yield From(self.pipe_connection.read())
                 self._process(data)
+            except BrokenPipeError:
+                self.detach_and_close()
+                break
+
             except Exception as e:
                 import traceback; traceback.print_stack()
-                print('got exception ', e)
+                print('got exception ', repr(e))
 
     def _process(self, data):
         """
@@ -101,13 +106,16 @@ class ServerConnection(object):
         """
         Send packet to client.
         """
+        if self._closed:
+            return
+
         data = json.dumps(data)
 
         def send():
             try:
                 yield From(self.pipe_connection.write(data))
-            except _BrokenPipeError:
-                pass # TODO
+            except BrokenPipeError:
+                self.detach_and_close()
         ensure_future(send())
 
     def _run_command(self, packet):
