@@ -317,7 +317,7 @@ class Pymux(object):
             if client_state.app == app:
                 return client_state
 
-        raise ValueError
+        raise ValueError('Client state for app %r not found' % (app, ))
 
     def get_connection(self):
         " Return the active Connection instance. "
@@ -326,7 +326,7 @@ class Pymux(object):
             if client_state.app == app:
                 return connection
 
-        raise ValueError
+        raise ValueError('Connection for app %r not found' % (app, ))
 
     def startup(self):
         # Handle start-up comands.
@@ -468,6 +468,8 @@ class Pymux(object):
 
     def invalidate(self):
         " Invalidate the UI for all clients. "
+        logger.info('Invalidating %s applications', len(self.apps))
+
         for app in self.apps:
             app.invalidate()
 
