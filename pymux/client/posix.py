@@ -1,11 +1,10 @@
 from __future__ import unicode_literals
 
-from prompt_toolkit.eventloop.base import INPUT_TIMEOUT
-from prompt_toolkit.eventloop.posix import call_on_sigwinch
 from prompt_toolkit.eventloop.select import select_fds
-from prompt_toolkit.eventloop.posix_utils import PosixStdinReader
-from prompt_toolkit.terminal.vt100_input import raw_mode, cooked_mode
-from prompt_toolkit.terminal.vt100_output import _get_size, Vt100_Output
+from prompt_toolkit.input.posix_utils import PosixStdinReader
+from prompt_toolkit.input.vt100 import raw_mode, cooked_mode
+from prompt_toolkit.output.vt100 import _get_size, Vt100_Output
+from prompt_toolkit.output import ColorDepth
 
 from pymux.utils import nonblocking
 
@@ -17,15 +16,17 @@ import signal
 import socket
 import sys
 import tempfile
+from .base import Client
 
+INPUT_TIMEOUT = .5
 
 __all__ = (
-    'Client',
+    'PosixClient',
     'list_clients',
 )
 
 
-class Client(object):
+class PosixClient(Client):
     def __init__(self, socket_name):
         self.socket_name = socket_name
         self._mode_context_managers = []
@@ -59,20 +60,17 @@ class Client(object):
             'pane_id': pane_id
         })
 
-    def attach(self, detach_other_clients=False, ansi_colors_only=False, true_color=False):
+    def attach(self, detach_other_clients=False, color_depth=ColorDepth.DEPTH_8_BIT):
         """
         Attach client user interface.
         """
         assert isinstance(detach_other_clients, bool)
-        assert isinstance(ansi_colors_only, bool)
-        assert isinstance(true_color, bool)
 
         self._send_size()
         self._send_packet({
             'cmd': 'start-gui',
             'detach-others': detach_other_clients,
-            'ansi-colors-only': ansi_colors_only,
-            'true-color': true_color,
+            'color-depth': color_depth,
             'term': os.environ.get('TERM', ''),
             'data': ''
         })
@@ -84,7 +82,11 @@ class Client(object):
             socket_fd = self.socket.fileno()
             current_timeout = INPUT_TIMEOUT  # Timeout, used to flush escape sequences.
 
-            with call_on_sigwinch(self._send_size):
+            try:
+                def winch_handler(signum, frame):
+                    self._send_size()
+
+                signal.signal(signal.SIGWINCH, winch_handler)
                 while True:
                     r = select_fds([stdin_fd, socket_fd], current_timeout)
 
@@ -119,6 +121,8 @@ class Client(object):
                         # Timeout. (Tell the server to flush the vt100 Escape.)
                         self._send_packet({'cmd': 'flush-input'})
                         current_timeout = None
+            finally:
+                signal.signal(signal.SIGWINCH, signal.SIG_IGN)
 
     def _process(self, data_buffer):
         """
@@ -194,6 +198,6 @@ def list_clients():
     p = '%s/pymux.sock.%s.*' % (tempfile.gettempdir(), getpass.getuser())
     for path in glob.glob(p):
         try:
-            yield Client(path)
+            yield PosixClient(path)
         except socket.error:
             pass

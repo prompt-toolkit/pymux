@@ -5,14 +5,13 @@ import re
 import shlex
 import six
 
+from prompt_toolkit.application.current import get_app
 from prompt_toolkit.document import Document
-from prompt_toolkit.enums import SEARCH_BUFFER
 from prompt_toolkit.key_binding.vi_state import InputMode
 
 from pymux.arrangement import LayoutTypes
 from pymux.commands.aliases import ALIASES
 from pymux.commands.utils import wrap_argument
-from pymux.enums import PROMPT
 from pymux.format import format_pymux_string
 from pymux.key_mappings import pymux_key_to_prompt_toolkit_key_sequence, prompt_toolkit_key_to_vt100_key
 from pymux.layout import focus_right, focus_left, focus_up, focus_down
@@ -48,7 +47,7 @@ def get_option_flags_for_command(command):
     return COMMANDS_TO_OPTION_FLAGS.get(command, [])
 
 
-def handle_command(pymux, cli, input_string):
+def handle_command(pymux, input_string):
     """
     Handle command.
     """
@@ -68,12 +67,12 @@ def handle_command(pymux, cli, input_string):
                 parts = shlex.split(input_string)
         except ValueError as e:
             # E.g. missing closing quote.
-            pymux.show_message(cli, 'Invalid command %s: %s' % (input_string, e))
+            pymux.show_message('Invalid command %s: %s' % (input_string, e))
         else:
-            call_command_handler(parts[0], pymux, cli, parts[1:])
+            call_command_handler(parts[0], pymux, parts[1:])
 
 
-def call_command_handler(command, pymux, cli, arguments):
+def call_command_handler(command, pymux, arguments):
     """
     Execute command.
 
@@ -87,19 +86,19 @@ def call_command_handler(command, pymux, cli, arguments):
     try:
         handler = COMMANDS_TO_HANDLERS[command]
     except KeyError:
-        pymux.show_message(cli, 'Invalid command: %s' % (command,))
+        pymux.show_message('Invalid command: %s' % (command,))
     else:
         try:
-            handler(pymux, cli, arguments)
+            handler(pymux, arguments)
         except CommandException as e:
-            pymux.show_message(cli, e.message)
+            pymux.show_message(e.message)
 
 
 def cmd(name, options=''):
     """
     Decorator for all commands.
 
-    Commands will receive (pymux, cli, variables) as input.
+    Commands will receive (pymux, variables) as input.
     Commands can raise CommandException.
     """
     # Validate options.
@@ -110,7 +109,7 @@ def cmd(name, options=''):
             pass
 
     def decorator(func):
-        def command_wrapper(pymux, cli, arguments):
+        def command_wrapper(pymux, arguments):
             # Hack to make the 'bind-key' option work.
             # (bind-key expects a variable number of arguments.)
             if name == 'bind-key' and '--' not in arguments:
@@ -146,7 +145,7 @@ def cmd(name, options=''):
                 raise CommandException('Usage: %s %s' % (name, options))
 
             # Call handler.
-            func(pymux, cli, received_options)
+            func(pymux, received_options)
 
             # Invalidate all clients, not just the current CLI.
             pymux.invalidate()
@@ -173,19 +172,19 @@ class CommandException(Exception):
 
 
 @cmd('break-pane', options='[-d]')
-def break_pane(pymux, cli, variables):
+def break_pane(pymux, variables):
     dont_focus_window = variables['-d']
 
-    pymux.arrangement.break_pane(cli, set_active=not dont_focus_window)
+    pymux.arrangement.break_pane(set_active=not dont_focus_window)
     pymux.invalidate()
 
 
 @cmd('select-pane', options='(-L|-R|-U|-D|-t <pane-id>)')
-def select_pane(pymux, cli, variables):
+def select_pane(pymux, variables):
 
     if variables['-t']:
         pane_id = variables['<pane-id>']
-        w = pymux.arrangement.get_active_window(cli)
+        w = pymux.arrangement.get_active_window()
 
         if pane_id == ':.+':
             w.focus_next()
@@ -205,11 +204,11 @@ def select_pane(pymux, cli, variables):
         if variables['-D']: h = focus_down
         if variables['-R']: h = focus_right
 
-        h(pymux, cli)
+        h(pymux)
 
 
 @cmd('select-window', options='(-t <target-window>)')
-def select_window(pymux, cli, variables):
+def select_window(pymux, variables):
     """
     Select a window. E.g:  select-window -t :3
     """
@@ -226,7 +225,7 @@ def select_window(pymux, cli, variables):
         else:
             w = pymux.arrangement.get_window_by_index(number)
             if w:
-                pymux.arrangement.set_active_window(cli, w)
+                pymux.arrangement.set_active_window(w)
             else:
                 invalid_window()
     else:
@@ -234,7 +233,7 @@ def select_window(pymux, cli, variables):
 
 
 @cmd('move-window', options='(-t <dst-window>)')
-def move_window(pymux, cli, variables):
+def move_window(pymux, variables):
     """
     Move window to a new index.
     """
@@ -249,54 +248,54 @@ def move_window(pymux, cli, variables):
         raise CommandException("Can't move window: index in use.")
 
     # Save index.
-    w = pymux.arrangement.get_active_window(cli)
+    w = pymux.arrangement.get_active_window()
     pymux.arrangement.move_window(w, new_index)
 
 
 @cmd('rotate-window', options='[-D|-U]')
-def rotate_window(pymux, cli, variables):
+def rotate_window(pymux, variables):
     if variables['-D']:
-        pymux.arrangement.rotate_window(cli, count=-1)
+        pymux.arrangement.rotate_window(count=-1)
     else:
-        pymux.arrangement.rotate_window(cli)
+        pymux.arrangement.rotate_window()
 
 
 @cmd('swap-pane', options='(-D|-U)')
-def swap_pane(pymux, cli, variables):
-    pymux.arrangement.get_active_window(cli).rotate(with_pane_after_only=variables['-U'])
+def swap_pane(pymux, variables):
+    pymux.arrangement.get_active_window().rotate(with_pane_after_only=variables['-U'])
 
 
 @cmd('kill-pane')
-def kill_pane(pymux, cli, variables):
-    pane = pymux.arrangement.get_active_pane(cli)
+def kill_pane(pymux, variables):
+    pane = pymux.arrangement.get_active_pane()
     pymux.kill_pane(pane)
 
 
 @cmd('kill-window')
-def kill_window(pymux, cli, variables):
+def kill_window(pymux, variables):
     " Kill all panes in the current window. "
-    for pane in pymux.arrangement.get_active_window(cli).panes:
+    for pane in pymux.arrangement.get_active_window().panes:
         pymux.kill_pane(pane)
 
 
 @cmd('suspend-client')
-def suspend_client(pymux, cli, variables):
-    connection = pymux.get_connection_for_cli(cli)
+def suspend_client(pymux, variables):
+    connection = pymux.get_connection()
 
     if connection:
         connection.suspend_client_to_background()
 
 
 @cmd('clock-mode')
-def clock_mode(pymux, cli, variables):
-    pane = pymux.arrangement.get_active_pane(cli)
+def clock_mode(pymux, variables):
+    pane = pymux.arrangement.get_active_pane()
     if pane:
         pane.clock_mode = not pane.clock_mode
 
 
 @cmd('last-pane')
-def last_pane(pymux, cli, variables):
-    w = pymux.arrangement.get_active_window(cli)
+def last_pane(pymux, variables):
+    w = pymux.arrangement.get_active_window()
     prev_active_pane = w.previous_active_pane
 
     if prev_active_pane:
@@ -304,79 +303,79 @@ def last_pane(pymux, cli, variables):
 
 
 @cmd('next-layout')
-def next_layout(pymux, cli, variables):
+def next_layout(pymux, variables):
     " Select next layout. "
-    pane = pymux.arrangement.get_active_window(cli)
+    pane = pymux.arrangement.get_active_window()
     if pane:
         pane.select_next_layout()
 
 
 @cmd('previous-layout')
-def previous_layout(pymux, cli, variables):
+def previous_layout(pymux, variables):
     " Select previous layout. "
-    pane = pymux.arrangement.get_active_window(cli)
+    pane = pymux.arrangement.get_active_window()
     if pane:
         pane.select_previous_layout()
 
 
 @cmd('new-window', options='[(-n <name>)] [(-c <start-directory>)] [<executable>]')
-def new_window(pymux, cli, variables):
+def new_window(pymux, variables):
     executable = variables['<executable>']
     start_directory = variables['<start-directory>']
     name = variables['<name>']
 
-    pymux.create_window(cli, executable, start_directory=start_directory, name=name)
+    pymux.create_window(executable, start_directory=start_directory, name=name)
 
 
 @cmd('next-window')
-def next_window(pymux, cli, variables):
+def next_window(pymux, variables):
     " Focus the next window. "
-    pymux.arrangement.focus_next_window(cli)
+    pymux.arrangement.focus_next_window()
 
 
 @cmd('last-window')
-def _(pymux, cli, variables):
+def _(pymux, variables):
     " Go to previous active window. "
-    w = pymux.arrangement.get_previous_active_window(cli)
+    w = pymux.arrangement.get_previous_active_window()
 
     if w:
-        pymux.arrangement.set_active_window(cli, w)
+        pymux.arrangement.set_active_window(w)
 
 
 @cmd('previous-window')
-def previous_window(pymux, cli, variables):
+def previous_window(pymux, variables):
     " Focus the previous window. "
-    pymux.arrangement.focus_previous_window(cli)
+    pymux.arrangement.focus_previous_window()
 
 
 @cmd('select-layout', options='<layout-type>')
-def select_layout(pymux, cli, variables):
+def select_layout(pymux, variables):
     layout_type = variables['<layout-type>']
 
     if layout_type in LayoutTypes._ALL:
-        pymux.arrangement.get_active_window(cli).select_layout(layout_type)
+        pymux.arrangement.get_active_window().select_layout(layout_type)
     else:
         raise CommandException('Invalid layout type.')
 
 
 @cmd('rename-window', options='<name>')
-def rename_window(pymux, cli, variables):
+def rename_window(pymux, variables):
     """
     Rename the active window.
     """
-    pymux.arrangement.get_active_window(cli).chosen_name = variables['<name>']
+    pymux.arrangement.get_active_window().chosen_name = variables['<name>']
 
 
 @cmd('rename-pane', options='<name>')
-def rename_pane(pymux, cli, variables):
+def rename_pane(pymux, variables):
     """
     Rename the active pane.
     """
-    pymux.arrangement.get_active_pane(cli).chosen_name = variables['<name>']
+    pymux.arrangement.get_active_pane().chosen_name = variables['<name>']
 
 
 @cmd('rename-session', options='<name>')
-def rename_session(pymux, cli, variables):
+def rename_session(pymux, variables):
     """
     Rename this session.
     """
@@ -384,7 +383,7 @@ def rename_session(pymux, cli, variables):
 
 
 @cmd('split-window', options='[-v|-h] [(-c <start-directory>)] [<executable>]')
-def split_window(pymux, cli, variables):
+def split_window(pymux, variables):
     """
     Split horizontally or vertically.
     """
@@ -392,12 +391,12 @@ def split_window(pymux, cli, variables):
     start_directory = variables['<start-directory>']
 
     # The tmux definition of horizontal is the opposite of prompt_toolkit.
-    pymux.add_process(cli, executable, vsplit=variables['-h'],
+    pymux.add_process(executable, vsplit=variables['-h'],
                       start_directory=start_directory)
 
 
 @cmd('resize-pane', options="[(-L <left>)] [(-U <up>)] [(-D <down>)] [(-R <right>)] [-Z]")
-def resize_pane(pymux, cli, variables):
+def resize_pane(pymux, variables):
     """
     Resize/zoom the active pane.
     """
@@ -409,7 +408,7 @@ def resize_pane(pymux, cli, variables):
     except ValueError:
         raise CommandException('Expecting an integer.')
 
-    w = pymux.arrangement.get_active_window(cli)
+    w = pymux.arrangement.get_active_window()
 
     if w:
         w.change_size_for_active_pane(up=up, right=right, down=down, left=left)
@@ -420,27 +419,27 @@ def resize_pane(pymux, cli, variables):
 
 
 @cmd('detach-client')
-def detach_client(pymux, cli, variables):
+def detach_client(pymux, variables):
     """
     Detach client.
     """
-    pymux.detach_client(cli)
+    pymux.detach_client(get_app())
 
 
 @cmd('confirm-before', options='[(-p <message>)] <command>')
-def confirm_before(pymux, cli, variables):
-    client_state = pymux.get_client_state(cli)
+def confirm_before(pymux, variables):
+    client_state = pymux.get_client_state()
 
     client_state.confirm_text = variables['<message>'] or ''
     client_state.confirm_command = variables['<command>']
 
 
 @cmd('command-prompt', options='[(-p <message>)] [(-I <default>)] [<command>]')
-def command_prompt(pymux, cli, variables):
+def command_prompt(pymux, variables):
     """
     Enter command prompt.
     """
-    client_state = pymux.get_client_state(cli)
+    client_state = pymux.get_client_state()
 
     if variables['<command>']:
         # When a 'command' has been given.
@@ -448,25 +447,27 @@ def command_prompt(pymux, cli, variables):
         client_state.prompt_command = variables['<command>']
 
         client_state.prompt_mode = True
-        cli.buffers[PROMPT].reset(Document(
-            format_pymux_string(pymux, cli, variables['<default>'] or '')))
+        client_state.prompt_buffer.reset(Document(
+            format_pymux_string(pymux, variables['<default>'] or '')))
+
+        get_app().layout.focus(client_state.prompt_buffer)
     else:
         # Show the ':' prompt.
         client_state.prompt_text = ''
         client_state.prompt_command = ''
 
-        client_state.command_mode = True
+        get_app().layout.focus(client_state.command_buffer)
 
     # Go to insert mode.
-    cli.vi_state.input_mode = InputMode.INSERT
+    get_app().vi_state.input_mode = InputMode.INSERT
 
 
 @cmd('send-prefix')
-def send_prefix(pymux, cli, variables):
+def send_prefix(pymux, variables):
     """
     Send prefix to active pane.
     """
-    process = pymux.arrangement.get_active_pane(cli).process
+    process = pymux.arrangement.get_active_pane().process
 
     for k in pymux.key_bindings_manager.prefix:
         vt100_data = prompt_toolkit_key_to_vt100_key(k)
@@ -474,7 +475,7 @@ def send_prefix(pymux, cli, variables):
 
 
 @cmd('bind-key', options='[-n] <key> [--] <command> [<arguments>...]')
-def bind_key(pymux, cli, variables):
+def bind_key(pymux, variables):
     """
     Bind a key sequence.
     -n: Not necessary to use the prefix.
@@ -492,7 +493,7 @@ def bind_key(pymux, cli, variables):
 
 
 @cmd('unbind-key', options='[-n] <key>')
-def unbind_key(pymux, cli, variables):
+def unbind_key(pymux, variables):
     """
     Remove key binding.
     """
@@ -504,11 +505,11 @@ def unbind_key(pymux, cli, variables):
 
 
 @cmd('send-keys', options='<keys>...')
-def send_keys(pymux, cli, variables):
+def send_keys(pymux, variables):
     """
     Send key strokes to the active process.
     """
-    pane = pymux.arrangement.get_active_pane(cli)
+    pane = pymux.arrangement.get_active_pane()
 
     if pane.display_scroll_buffer:
         raise CommandException('Cannot send keys. Pane is in copy mode.')
@@ -526,30 +527,28 @@ def send_keys(pymux, cli, variables):
 
 
 @cmd('copy-mode', options='[-u]')
-def copy_mode(pymux, cli, variables):
+def copy_mode(pymux, variables):
     """
     Enter copy mode.
     """
     go_up = variables['-u']  # Go in copy mode and page-up directly.
     # TODO: handle '-u'
 
-    pane = pymux.arrangement.get_active_pane(cli)
+    pane = pymux.arrangement.get_active_pane()
     pane.enter_copy_mode()
-
-    cli.buffers[SEARCH_BUFFER].reset()
 
 
 @cmd('paste-buffer')
-def paste_buffer(pymux, cli, variables):
+def paste_buffer(pymux, variables):
     """
     Paste clipboard content into buffer.
     """
-    pane = pymux.arrangement.get_active_pane(cli)
-    pane.process.write_input(cli.clipboard.get_data().text, paste=True)
+    pane = pymux.arrangement.get_active_pane()
+    pane.process.write_input(get_app().clipboard.get_data().text, paste=True)
 
 
 @cmd('source-file', options='<filename>')
-def source_file(pymux, cli, variables):
+def source_file(pymux, variables):
     """
     Source configuration file.
     """
@@ -558,13 +557,13 @@ def source_file(pymux, cli, variables):
         with open(filename, 'rb') as f:
             for line in f:
                 line = line.decode('utf-8')
-                handle_command(pymux, cli, line)
+                handle_command(pymux, line)
     except IOError as e:
         raise CommandException('IOError: %s' % (e, ))
 
 
 @cmd('set-option', options='<option> <value>')
-def set_option(pymux, cli, variables, window=False):
+def set_option(pymux, variables, window=False):
     name = variables['<option>']
     value = variables['<value>']
 
@@ -575,35 +574,35 @@ def set_option(pymux, cli, variables, window=False):
 
     if option:
         try:
-            option.set_value(pymux, cli, value)
+            option.set_value(pymux, value)
         except SetOptionError as e:
             raise CommandException(e.message)
     else:
         raise CommandException('Invalid option: %s' % (name, ))
 
 @cmd('set-window-option', options='<option> <value>')
-def set_window_option(pymux, cli, variables):
-    set_option(pymux, cli, variables, window=True)
+def set_window_option(pymux, variables):
+    set_option(pymux, variables, window=True)
 
 
 @cmd('display-panes')
-def display_panes(pymux, cli, variables):
+def display_panes(pymux, variables):
     " Display the pane numbers. "
     pymux.display_pane_numbers = True
 
 
 @cmd('display-message', options='<message>')
-def display_message(pymux, cli, variables):
+def display_message(pymux, variables):
     " Display a message. "
     message = variables['<message>']
-    client_state = pymux.get_client_state(cli)
+    client_state = pymux.get_client_state()
     client_state.message = message
 
 
 @cmd('clear-history')
-def clear_history(pymux, cli, variables):
+def clear_history(pymux, variables):
     " Clear scrollback buffer. "
-    pane = pymux.arrangement.get_active_pane(cli)
+    pane = pymux.arrangement.get_active_pane()
 
     if pane.display_scroll_buffer:
         raise CommandException('Not available in copy mode')
@@ -612,7 +611,7 @@ def clear_history(pymux, cli, variables):
 
 
 @cmd('list-keys')
-def list_keys(pymux, cli, variables):
+def list_keys(pymux, variables):
     """
     Display all configured key bindings.
     """
@@ -626,19 +625,17 @@ def list_keys(pymux, cli, variables):
             ('-n' if needs_prefix else ''), key, custom_binding.command,
             ' '.join(map(wrap_argument, custom_binding.arguments))))
 
-    result = '\n'.join(sorted(result))
-
     # Display help in pane.
-    pane = pymux.arrangement.get_active_pane(cli)
-    pane.display_text(result, title='list-keys')
+    result = '\n'.join(sorted(result))
+    pymux.get_client_state().layout_manager.display_popup('list-keys', result)
 
 
 @cmd('list-panes')
-def list_panes(pymux, cli, variables):
+def list_panes(pymux, variables):
     """
     Display a list of all the panes.
     """
-    w = pymux.arrangement.get_active_window(cli)
+    w = pymux.arrangement.get_active_window()
     active_pane = w.active_pane
 
     result = []
@@ -646,14 +643,24 @@ def list_panes(pymux, cli, variables):
     for i, p in enumerate(w.panes):
         process = p.process
 
-        result.append('%i: [%sx%s] [history %s/%s] %s\n' % (
+        result.append('%i: [%sx%s] [history %s/%s] %s' % (
             i, process.sx, process.sy,
             min(pymux.history_limit, process.screen.line_offset + process.sy),
             pymux.history_limit,
             ('(active)' if p == active_pane else '')))
 
     # Display help in pane.
-    active_pane.display_text(''.join(result), title='list-panes')
+    result = '\n'.join(sorted(result))
+    pymux.get_client_state().layout_manager.display_popup('list-keys', result)
+
+
+@cmd('show-buffer')
+def show_buffer(pymux, variables):
+    """
+    Display the clipboard content.
+    """
+    text = get_app().clipboard.get_data().text
+    pymux.get_client_state().layout_manager.display_popup('show-buffer', text)
 
 
 # Check whether all aliases point to real commands.

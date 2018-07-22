@@ -11,7 +11,7 @@ __all__ = (
 )
 
 
-def format_pymux_string(pymux, cli, string, window=None, pane=None):
+def format_pymux_string(pymux, string, window=None, pane=None):
     """
     Apply pymux sting formatting. (Similar to tmux.)
     E.g.  #P is replaced by the index of the active pane.
@@ -26,7 +26,7 @@ def format_pymux_string(pymux, cli, string, window=None, pane=None):
     arrangement = pymux.arrangement
 
     if window is None:
-        window = arrangement.get_active_window(cli)
+        window = arrangement.get_active_window()
 
     if pane is None:
         pane = window.active_pane
@@ -49,9 +49,9 @@ def format_pymux_string(pymux, cli, string, window=None, pane=None):
     def window_flags():
         z = 'Z' if window.zoom else ''
 
-        if window == arrangement.get_active_window(cli):
+        if window == arrangement.get_active_window():
             return '*' + z
-        elif window == arrangement.get_previous_active_window(cli):
+        elif window == arrangement.get_previous_active_window():
             return '-' + z
         else:
             return z + ' '

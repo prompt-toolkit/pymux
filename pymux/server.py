@@ -1,19 +1,18 @@
 from __future__ import unicode_literals
-import getpass
 import json
-import socket
-import tempfile
 
+from prompt_toolkit.application.current import set_app
+from prompt_toolkit.eventloop import ensure_future, From
+from prompt_toolkit.input.vt100_parser import Vt100Parser
 from prompt_toolkit.layout.screen import Size
-from prompt_toolkit.terminal.vt100_input import InputStream
-from prompt_toolkit.terminal.vt100_output import Vt100_Output
-from prompt_toolkit.input import Input
+from prompt_toolkit.output.vt100 import Vt100_Output
+from prompt_toolkit.utils import is_windows
 
 from .log import logger
+from .pipes import BrokenPipeError
 
 __all__ = (
     'ServerConnection',
-    'bind_socket',
 )
 
 
@@ -21,61 +20,46 @@ class ServerConnection(object):
     """
     For each client that connects, we have one instance of this class.
     """
-    def __init__(self, pymux, connection, client_address):
+    def __init__(self, pymux, pipe_connection):
         self.pymux = pymux
-        self.connection = connection
-        self.client_address = client_address
+
+        self.pipe_connection = pipe_connection
+
         self.size = Size(rows=20, columns=80)
         self._closed = False
 
         self._recv_buffer = b''
-        self.cli = None
+        self.client_state = None
 
         def feed_key(key):
-            self.cli.input_processor.feed(key)
-            self.cli.input_processor.process_keys()
+            self.client_state.app.key_processor.feed(key)
+            self.client_state.app.key_processor.process_keys()
 
-        self._inputstream = InputStream(feed_key)
+        self._inputstream = Vt100Parser(feed_key)
+        self._pipeinput = _ClientInput(self._send_packet)
 
-        pymux.eventloop.add_reader(
-            connection.fileno(), self._recv)
+        ensure_future(self._start_reading())
 
-    def _recv(self):
-        """
-        Data received from the client.
-        (Parse it.)
-        """
-        # Read next chunk.
-        try:
-            data = self.connection.recv(1024)
-        except OSError as e:
-            # On OSX, when we try to create a new window by typing "pymux
-            # new-window" in a centain pane, very often we get the following
-            # error: "OSError: [Errno 9] Bad file descriptor."
-            # This doesn't seem very harmful, and we can just try again.
-            logger.warning('Got OSError while reading data from client: %s. '
-                           'Trying again.', e)
-            return
+    def _start_reading(self):
+        while True:
+            try:
+                data = yield From(self.pipe_connection.read())
+                self._process(data)
+            except BrokenPipeError:
+                self.detach_and_close()
+                break
 
-        if data == b'':
-            # End of file. Close connection.
-            self.detach_and_close()
-        else:
-            # Receive and process packets.
-            self._recv_buffer += data
-
-            while b'\0' in self._recv_buffer:
-                # Zero indicates end of packet.
-                pos = self._recv_buffer.index(b'\0')
-                self._process(self._recv_buffer[:pos])
-                self._recv_buffer = self._recv_buffer[pos + 1:]
+            except Exception as e:
+                import traceback; traceback.print_stack()
+                print('got exception ', repr(e))
+                break
 
     def _process(self, data):
         """
         Process packet received from client.
         """
         try:
-            packet = json.loads(data.decode('utf-8'))
+            packet = json.loads(data)
         except ValueError:
             # So far, this never happened. But it would be good to have some
             # protection.
@@ -88,10 +72,10 @@ class ServerConnection(object):
 
         # Handle stdin.
         elif packet['cmd'] == 'in':
-            self._inputstream.feed(packet['data'])
+            self._pipeinput.send_text(packet['data'])
 
-        elif packet['cmd'] == 'flush-input':
-            self._inputstream.flush()  # Flush escape key.
+#        elif packet['cmd'] == 'flush-input':
+#            self._inputstream.flush()  # Flush escape key.  # XXX: I think we no longer need this.
 
         # Set size. (The client reports the size.)
         elif packet['cmd'] == 'size':
@@ -102,31 +86,37 @@ class ServerConnection(object):
         # Start GUI. (Create CommandLineInterface front-end for pymux.)
         elif packet['cmd'] == 'start-gui':
             detach_other_clients = bool(packet['detach-others'])
-            true_color = bool(packet['true-color'])
-            ansi_colors_only = bool(packet['ansi-colors-only'])
+            color_depth = packet['color-depth']
             term = packet['term']
 
             if detach_other_clients:
                 for c in self.pymux.connections:
                     c.detach_and_close()
 
-            self._create_cli(true_color=true_color, ansi_colors_only=ansi_colors_only, term=term)
+            print('Create app...')
+            self._create_app(color_depth=color_depth, term=term)
 
     def _send_packet(self, data):
         """
         Send packet to client.
         """
-        try:
-            self.connection.send(json.dumps(data).encode('utf-8') + b'\0')
-        except socket.error:
-            if not self._closed:
+        if self._closed:
+            return
+
+        data = json.dumps(data)
+
+        def send():
+            try:
+                yield From(self.pipe_connection.write(data))
+            except BrokenPipeError:
                 self.detach_and_close()
+        ensure_future(send())
 
     def _run_command(self, packet):
         """
         Execute a run command from the client.
         """
-        create_temp_cli = self.cli is None
+        create_temp_cli = self.client_states is None
 
         if create_temp_cli:
             # If this client doesn't have a CLI. Create a Fake CLI where the
@@ -134,85 +124,59 @@ class ServerConnection(object):
             # will be removed before the render function is called, so it doesn't
             # hurt too much and makes the code easier.)
             pane_id = int(packet['pane_id'])
-            self._create_cli()
-            self.pymux.arrangement.set_active_window_from_pane_id(self.cli, pane_id)
+            self._create_app()
+            with set_app(self.client_state.app):
+                self.pymux.arrangement.set_active_window_from_pane_id(pane_id)
 
-        try:
-            self.pymux.handle_command(self.cli, packet['data'])
-        finally:
-            self._close_cli()
+        with set_app(self.client_state.app):
+            try:
+                self.pymux.handle_command(packet['data'])
+            finally:
+                self._close_connection()
 
-    def _create_cli(self, true_color=False, ansi_colors_only=False, term='xterm'):
+    def _create_app(self, color_depth, term='xterm'):
         """
         Create CommandLineInterface for this client.
         Called when the client wants to attach the UI to the server.
         """
         output = Vt100_Output(_SocketStdout(self._send_packet),
                               lambda: self.size,
-                              true_color=true_color,
-                              ansi_colors_only=ansi_colors_only,
                               term=term,
                               write_binary=False)
-        input = _ClientInput(self._send_packet)
-        self.cli = self.pymux.create_cli(self, output, input)
 
-    def _close_cli(self):
-        if self in self.pymux.clis:
-            # This is important. If we would forget this, the server will
-            # render CLI output for clients that aren't connected anymore.
-            del self.pymux.clis[self]
+        self.client_state = self.pymux.add_client(
+            input=self._pipeinput, output=output, connection=self, color_depth=color_depth)
 
-        self.cli = None
+        print('Start running app...')
+        future = self.client_state.app.run_async()
+        print('Start running app got future...', future)
+
+        @future.add_done_callback
+        def done(_):
+            print('APP DONE.........')
+            print(future.result())
+            self._close_connection()
+
+    def _close_connection(self):
+        # This is important. If we would forget this, the server will
+        # render CLI output for clients that aren't connected anymore.
+        self.pymux.remove_client(self)
+        self.client_state = None
+        self._closed = True
+
+        # Remove from eventloop.
+        self.pipe_connection.close()
 
     def suspend_client_to_background(self):
         """
         Ask the client to suspend itself. (Like, when Ctrl-Z is pressed.)
         """
-        if self.cli:
-            def suspend():
-                self._send_packet({'cmd': 'suspend'})
-
-            self.cli.run_in_terminal(suspend)
+        self._send_packet({'cmd': 'suspend'})
 
     def detach_and_close(self):
         # Remove from Pymux.
-        self.pymux.connections.remove(self)
-        self._close_cli()
+        self._close_connection()
 
-        # Remove from eventloop.
-        self.pymux.eventloop.remove_reader(self.connection.fileno())
-        self.connection.close()
-
-        self._closed = True
-
-
-def bind_socket(socket_name=None):
-    """
-    Find a socket to listen on and return it.
-
-    Returns (socket_name, sock_obj)
-    """
-    s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-
-    if socket_name:
-        s.bind(socket_name)
-        return socket_name, s
-    else:
-        i = 0
-        while True:
-            try:
-                socket_name = '%s/pymux.sock.%s.%i' % (
-                    tempfile.gettempdir(), getpass.getuser(), i)
-                s.bind(socket_name)
-                return socket_name, s
-            except (OSError, socket.error):
-                i += 1
-
-                # When 100 times failed, cancel server
-                if i == 100:
-                    logger.warning('100 times failed to listen on posix socket. '
-                                   'Please clean up old sockets.')
-                    raise
 
 
 class _SocketStdout(object):
@@ -234,20 +198,22 @@ class _SocketStdout(object):
         self._buffer = []
 
 
-class _ClientInput(Input):
+if is_windows():
+    from prompt_toolkit.input.win32_pipe import Win32PipeInput as PipeInput
+else:
+    from prompt_toolkit.input.posix_pipe import PosixPipeInput as PipeInput
+
+class _ClientInput(PipeInput):
     """
     Input class that can be given to the CommandLineInterface.
     We only need this for turning the client into raw_mode/cooked_mode.
     """
     def __init__(self, send_packet):
+        super(_ClientInput, self).__init__()
         assert callable(send_packet)
         self.send_packet = send_packet
 
-    def fileno(self):
-        raise NotImplementedError
-
-    def read(self):
-        raise NotImplementedError
+    # Implement raw/cooked mode by sending this to the attached client.
 
     def raw_mode(self):
         return self._create_context_manager('raw')

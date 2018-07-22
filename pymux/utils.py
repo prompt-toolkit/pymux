@@ -2,74 +2,16 @@
 Some utilities.
 """
 from __future__ import unicode_literals
-import array
-import fcntl
-import getpass
+from prompt_toolkit.utils import is_windows
+
 import os
-import pwd
 import sys
-import termios
 
 __all__ = (
-    'pty_make_controlling_tty',
     'daemonize',
-    'set_terminal_size',
     'nonblocking',
     'get_default_shell',
 )
-
-
-def pty_make_controlling_tty(tty_fd):
-    """
-    This makes the pseudo-terminal the controlling tty. This should be
-    more portable than the pty.fork() function. Specifically, this should
-    work on Solaris.
-
-    Thanks to pexpect:
-    http://pexpect.sourceforge.net/pexpect.html
-    """
-    child_name = os.ttyname(tty_fd)
-
-    # Disconnect from controlling tty. Harmless if not already connected.
-    try:
-        fd = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
-        if fd >= 0:
-            os.close(fd)
-    # which exception, shouldnt' we catch explicitly .. ?
-    except:
-        # Already disconnected. This happens if running inside cron.
-        pass
-
-    os.setsid()
-
-    # Verify we are disconnected from controlling tty
-    # by attempting to open it again.
-    try:
-        fd = os.open("/dev/tty", os.O_RDWR | os.O_NOCTTY)
-        if fd >= 0:
-            os.close(fd)
-            raise Exception('Failed to disconnect from controlling '
-                            'tty. It is still possible to open /dev/tty.')
-    # which exception, shouldnt' we catch explicitly .. ?
-    except:
-        # Good! We are disconnected from a controlling tty.
-        pass
-
-    # Verify we can open child pty.
-    fd = os.open(child_name, os.O_RDWR)
-    if fd < 0:
-        raise Exception("Could not open child pty, " + child_name)
-    else:
-        os.close(fd)
-
-    # Verify we now have a controlling tty.
-    if os.name != 'posix':
-        # Skip this on BSD-like systems since it will break.
-        fd = os.open("/dev/tty", os.O_WRONLY)
-        if fd < 0:
-            raise Exception("Could not open controlling tty, /dev/tty")
-        else:
-            os.close(fd)
 
 
 def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
@@ -129,25 +71,6 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     return 1
 
 
-def set_terminal_size(stdout_fileno, rows, cols):
-    """
-    Set terminal size.
-
-    (This is also mainly for internal use. Setting the terminal size
-    automatically happens when the window resizes. However, sometimes the
-    process that created a pseudo terminal, and the process that's attached to
-    the output window are not the same, e.g. in case of a telnet connection, or
-    unix domain socket, and then we have to sync the sizes by hand.)
-    """
-    # Buffer for the C call
-    # (The first parameter of 'array.array' needs to be 'str' on both Python 2
-    # and Python 3.)
-    buf = array.array(str('h'), [rows, cols, 0, 0])
-
-    # Do: TIOCSWINSZ (Set)
-    fcntl.ioctl(stdout_fileno, termios.TIOCSWINSZ, buf)
-
-
 class nonblocking(object):
     """
     Make fd non blocking.
@@ -156,10 +79,12 @@ class nonblocking(object):
         self.fd = fd
 
     def __enter__(self):
+        import fcntl
         self.orig_fl = fcntl.fcntl(self.fd, fcntl.F_GETFL)
         fcntl.fcntl(self.fd, fcntl.F_SETFL, self.orig_fl | os.O_NONBLOCK)
 
     def __exit__(self, *args):
+        import fcntl
         fcntl.fcntl(self.fd, fcntl.F_SETFL, self.orig_fl)
 
 
@@ -167,9 +92,15 @@ def get_default_shell():
     """
     return the path to the default shell for the current user.
     """
-    if 'SHELL' in os.environ:
-        return os.environ['SHELL']
+    if is_windows():
+        return 'cmd.exe'
     else:
-        username = getpass.getuser()
-        shell = pwd.getpwnam(username).pw_shell
-        return shell
+        import pwd
+        import getpass
+
+        if 'SHELL' in os.environ:
+            return os.environ['SHELL']
+        else:
+            username = getpass.getuser()
+            shell = pwd.getpwnam(username).pw_shell
+            return shell

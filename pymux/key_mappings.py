@@ -4,7 +4,7 @@ Pymux namings. (Those namings are kept compatible with tmux.)
 """
 from __future__ import unicode_literals
 from prompt_toolkit.keys import Keys
-from prompt_toolkit.terminal.vt100_input import ANSI_SEQUENCES
+from prompt_toolkit.input.vt100_parser import ANSI_SEQUENCES
 
 __all__ = (
     'pymux_key_to_prompt_toolkit_key_sequence',

@@ -1,7 +1,6 @@
 from __future__ import unicode_literals
 
-from prompt_toolkit.completion import Completer, Completion
-from prompt_toolkit.contrib.completers import WordCompleter
+from prompt_toolkit.completion import Completer, Completion, WordCompleter
 from prompt_toolkit.document import Document
 
 from .aliases import ALIASES
