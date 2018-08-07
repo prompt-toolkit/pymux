@@ -14,6 +14,7 @@ from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.output.defaults import create_output
+from prompt_toolkit.styles import ConditionalStyleTransformation, SwapLightAndDarkStyleTransformation
 
 from .arrangement import Arrangement, Pane, Window
 from .commands.commands import handle_command, call_command_handler
@@ -152,6 +153,10 @@ class ClientState(object):
             mouse_support=Condition(lambda: pymux.enable_mouse_support),
             full_screen=True,
             style=self.pymux.style,
+            style_transformation=ConditionalStyleTransformation(
+                SwapLightAndDarkStyleTransformation(),
+                Condition(lambda: self.pymux.swap_dark_and_light),
+            ),
             on_invalidate=(lambda _: pymux.invalidate()))
 
         # Synchronize the Vi state with the CLI object.
@@ -260,6 +265,7 @@ class Pymux(object):
         self.session_name = '0'
         self.status_justify = Justify.LEFT
         self.default_shell = get_default_shell()
+        self.swap_dark_and_light = False
 
         self.options = ALL_OPTIONS
         self.window_options = ALL_WINDOW_OPTIONS

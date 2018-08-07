@@ -193,6 +193,9 @@ ALL_OPTIONS = {
     'status-justify': JustifyOption('status_justify'),
     'status-interval': PositiveIntOption(
         'status_interval', [1, 2, 4, 8, 16, 30, 60]),
+
+    # Prompt-toolkit/pymux specific.
+    'swap-light-and-dark-colors': OnOffOption('swap_dark_and_light'),
 }
 
 
