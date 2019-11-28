@@ -10,7 +10,7 @@ arranged by ordering them in HSplit/VSplit instances.
 from __future__ import unicode_literals
 
 from ptterm import Terminal
-from prompt_toolkit.application.current import get_app, set_app
+from prompt_toolkit.application.current import get_app, get_app_or_none, set_app
 from prompt_toolkit.buffer import Buffer
 
 import math
@@ -647,7 +647,7 @@ class Arrangement(object):
         # Sort windows by index.
         self.windows = sorted(self.windows, key=lambda w: w.index)
 
-        app = get_app(return_none=True)
+        app = get_app_or_none()
 
         if app is not None and set_active:
             self.set_active_window(w)

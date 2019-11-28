@@ -1,7 +1,7 @@
 from __future__ import unicode_literals
+from asyncio import ensure_future, Future
 from ctypes import windll, byref
 from ctypes.wintypes import DWORD
-from prompt_toolkit.eventloop import From, Future, Return, ensure_future
 from ptterm.backends.win32_pipes import OVERLAPPED
 
 from .win32 import wait_for_event, create_event, read_message_from_pipe, write_message_to_pipe
@@ -63,7 +63,7 @@ class Win32PipeConnection(PipeConnection):
         self.pipe_instance = pipe_instance
         self.done_f = Future()
 
-    def read(self):
+    async def read(self):
         """
         (coroutine)
         Read a single message from the pipe. (Return as text.)
@@ -72,13 +72,13 @@ class Win32PipeConnection(PipeConnection):
             raise BrokenPipeError
 
         try:
-            result = yield From(read_message_from_pipe(self.pipe_instance.pipe_handle))
-            raise Return(result)
+            result = await read_message_from_pipe(self.pipe_instance.pipe_handle)
+            return result
         except BrokenPipeError:
             self.done_f.set_result(None)
             raise
 
-    def write(self, message):
+    async def write(self, message):
         """
         (coroutine)
         Write a single message into the pipe.
@@ -87,7 +87,7 @@ class Win32PipeConnection(PipeConnection):
             raise BrokenPipeError
 
         try:
-            yield From(write_message_to_pipe(self.pipe_instance.pipe_handle, message))
+            await write_message_to_pipe(self.pipe_instance.pipe_handle, message)
         except BrokenPipeError:
             self.done_f.set_result(None)
             raise

@@ -17,7 +17,7 @@ setup(
     long_description=long_description,
     packages=find_packages('.'),
     install_requires = [
-        'prompt_toolkit>=2.0.0,<2.1.0',
+        'prompt_toolkit>=3.0.0,<3.1.0',
         'ptterm',
         'six>=1.9.0',
         'docopt>=0.6.2',

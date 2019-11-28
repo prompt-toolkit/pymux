@@ -1,6 +1,6 @@
 from __future__ import unicode_literals
 
-from prompt_toolkit.eventloop.select import select_fds
+from select import select
 from prompt_toolkit.input.posix_utils import PosixStdinReader
 from prompt_toolkit.input.vt100 import raw_mode, cooked_mode
 from prompt_toolkit.output.vt100 import _get_size, Vt100_Output
@@ -88,7 +88,7 @@ class PosixClient(Client):
 
                 signal.signal(signal.SIGWINCH, winch_handler)
                 while True:
-                    r = select_fds([stdin_fd, socket_fd], current_timeout)
+                    r, _, _ = select([stdin_fd, socket_fd], [], [], current_timeout)
 
                     if socket_fd in r:
                         # Received packet from server.
@@ -120,7 +120,7 @@ class PosixClient(Client):
                     else:
                         # Timeout. (Tell the server to flush the vt100 Escape.)
                         self._send_packet({'cmd': 'flush-input'})
-                        current_timeout = None
+                        current_timeout = 0
             finally:
                 signal.signal(signal.SIGWINCH, signal.SIG_IGN)
 

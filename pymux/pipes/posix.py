@@ -5,7 +5,7 @@ import six
 import socket
 import tempfile
 
-from prompt_toolkit.eventloop import From, Return, Future, get_event_loop
+from asyncio import get_event_loop, Future
 
 from ..log import logger
 from .base import PipeConnection, BrokenPipeError
@@ -91,14 +91,14 @@ class PosixSocketConnection(PipeConnection):
         self._fd = socket.fileno()
         self._recv_buffer = b''
 
-    def read(self):
+    async def read(self):
         r"""
         Coroutine that reads the next packet.
         (Packets are \0 separated.)
         """
         # Read until we have a \0 in our buffer.
         while b'\0' not in self._recv_buffer:
-            self._recv_buffer += yield From(_read_chunk_from_socket(self.socket))
+            self._recv_buffer += await _read_chunk_from_socket(self.socket)
 
         # Split on the first separator.
         pos = self._recv_buffer.index(b'\0')
@@ -106,8 +106,7 @@ class PosixSocketConnection(PipeConnection):
         packet = self._recv_buffer[:pos]
         self._recv_buffer = self._recv_buffer[pos + 1:]
 
-        raise Return(packet)
-
+        return packet
 
     def write(self, message):
         """
@@ -119,7 +118,9 @@ class PosixSocketConnection(PipeConnection):
             if not self._closed:
                 raise BrokenPipeError
 
-        return Future.succeed(None)
+        f = Future()
+        f.set_result(None)
+        return f
 
     def close(self):
         """

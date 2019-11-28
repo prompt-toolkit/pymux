@@ -1,10 +1,10 @@
 from __future__ import unicode_literals
 import json
 
+from asyncio import ensure_future
 from prompt_toolkit.application.current import set_app
-from prompt_toolkit.eventloop import ensure_future, From
 from prompt_toolkit.input.vt100_parser import Vt100Parser
-from prompt_toolkit.layout.screen import Size
+from prompt_toolkit.data_structures import Size
 from prompt_toolkit.output.vt100 import Vt100_Output
 from prompt_toolkit.utils import is_windows
 
@@ -40,10 +40,10 @@ class ServerConnection(object):
 
         ensure_future(self._start_reading())
 
-    def _start_reading(self):
+    async def _start_reading(self):
         while True:
             try:
-                data = yield From(self.pipe_connection.read())
+                data = await self.pipe_connection.read()
                 self._process(data)
             except BrokenPipeError:
                 self.detach_and_close()
@@ -105,9 +105,9 @@ class ServerConnection(object):
 
         data = json.dumps(data)
 
-        def send():
+        async def send():
             try:
-                yield From(self.pipe_connection.write(data))
+                await self.pipe_connection.write(data)
             except BrokenPipeError:
                 self.detach_and_close()
         ensure_future(send())
@@ -147,15 +147,14 @@ class ServerConnection(object):
         self.client_state = self.pymux.add_client(
             input=self._pipeinput, output=output, connection=self, color_depth=color_depth)
 
-        print('Start running app...')
-        future = self.client_state.app.run_async()
-        print('Start running app got future...', future)
+        async def run():
+            print('Start running app...')
+            future = await self.client_state.app.run_async()
 
-        @future.add_done_callback
-        def done(_):
             print('APP DONE.........')
             print(future.result())
             self._close_connection()
+        ensure_future(run())
 
     def _close_connection(self):
         # This is important. If we would forget this, the server will

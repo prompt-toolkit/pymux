@@ -1,9 +1,8 @@
 from __future__ import unicode_literals
 
+from asyncio import ensure_future, get_event_loop
 from ctypes import byref, windll
 from ctypes.wintypes import DWORD
-from prompt_toolkit.eventloop import ensure_future, From
-from prompt_toolkit.eventloop import get_event_loop
 from prompt_toolkit.input.win32 import Win32Input
 from prompt_toolkit.output import ColorDepth
 from prompt_toolkit.output.win32 import Win32Output
@@ -49,12 +48,12 @@ class WindowsClient(Client):
             # Run as long as we have a connection with the server.
             get_event_loop().run_until_complete(f)  # Run forever.
 
-    def _start_reader(self):
+    async def _start_reader(self):
         """
         Read messages from the Win32 pipe server and handle them.
         """
         while True:
-            message = yield From(self.pipe.read_message())
+            message = await self.pipe.read_message()
             self._process(message)
 
     def _process(self, data_buffer):

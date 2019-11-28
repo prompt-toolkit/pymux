@@ -1,18 +1,17 @@
 from __future__ import unicode_literals
 
+from asyncio import Future, get_event_loop
+
 from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app, set_app
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.data_structures import Size
 from prompt_toolkit.enums import EditingMode
-from prompt_toolkit.eventloop import Future
-from prompt_toolkit.eventloop import get_event_loop
-from prompt_toolkit.eventloop.context import context
 from prompt_toolkit.filters import Condition
 from prompt_toolkit.input.defaults import create_input
 from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.layout.layout import Layout
-from prompt_toolkit.layout.screen import Size
 from prompt_toolkit.output.defaults import create_output
 from prompt_toolkit.styles import ConditionalStyleTransformation, SwapLightAndDarkStyleTransformation
 
@@ -31,6 +30,7 @@ from .style import ui_style
 from .utils import get_default_shell
 from ptterm import Terminal
 
+import contextvars
 import os
 import signal
 import six
@@ -572,8 +572,8 @@ class Pymux(object):
         def connection_cb(pipe_connection):
             # We have to create a new `context`, because this will be the scope for
             # a new prompt_toolkit.Application to become active.
-            with context():
-                connection = ServerConnection(self, pipe_connection)
+            context = contextvars.copy_context()
+            connection = context.run(lambda: ServerConnection(self, pipe_connection))
 
             self.connections.append(connection)
 
