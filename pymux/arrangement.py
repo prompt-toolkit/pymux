@@ -7,49 +7,48 @@ level abstraction of the Pymux window layout.
 An arrangement consists of a list of windows. And a window has a list of panes,
 arranged by ordering them in HSplit/VSplit instances.
 """
-from __future__ import unicode_literals
-
-from ptterm import Terminal
-from prompt_toolkit.application.current import get_app, get_app_or_none, set_app
-from prompt_toolkit.buffer import Buffer
-
 import math
 import os
 import weakref
-import six
+from typing import Optional
+
+from prompt_toolkit.application.current import get_app, get_app_or_none, set_app
+from prompt_toolkit.buffer import Buffer
+from ptterm import Terminal
 
 __all__ = (
-    'LayoutTypes',
-    'Pane',
-    'HSplit',
-    'VSplit',
-    'Window',
-    'Arrangement',
+    "LayoutTypes",
+    "Pane",
+    "HSplit",
+    "VSplit",
+    "Window",
+    "Arrangement",
 )
 
 
 class LayoutTypes:
     # The values are in lowercase with dashes, because that is what users can
     # use at the command line.
-    EVEN_HORIZONTAL = 'even-horizontal'
-    EVEN_VERTICAL = 'even-vertical'
-    MAIN_HORIZONTAL = 'main-horizontal'
-    MAIN_VERTICAL = 'main-vertical'
-    TILED = 'tiled'
+    EVEN_HORIZONTAL = "even-horizontal"
+    EVEN_VERTICAL = "even-vertical"
+    MAIN_HORIZONTAL = "main-horizontal"
+    MAIN_VERTICAL = "main-vertical"
+    TILED = "tiled"
 
     _ALL = [EVEN_HORIZONTAL, EVEN_VERTICAL, MAIN_HORIZONTAL, MAIN_VERTICAL, TILED]
 
 
-class Pane(object):
+class Pane:
     """
     One pane, containing one process and a search buffer for going into copy
     mode or displaying the help.
     """
-    _pane_counter = 1000  # Start at 1000, to be sure to not confuse this with pane indexes.
 
-    def __init__(self, terminal=None):
-        assert isinstance(terminal, Terminal)
+    _pane_counter = (
+        1000  # Start at 1000, to be sure to not confuse this with pane indexes.
+    )
 
+    def __init__(self, terminal: Terminal) -> None:
         self.terminal = terminal
         self.chosen_name = None
 
@@ -66,16 +65,15 @@ class Pane(object):
         #       get_tokens_for_line, that returns the token list with color
         #       information for each line.
         self.scroll_buffer = Buffer(read_only=True)
-        self.copy_get_tokens_for_line = lambda lineno: []
         self.display_scroll_buffer = False
-        self.scroll_buffer_title = ''
+        self.scroll_buffer_title = ""
 
     @property
     def process(self):
         return self.terminal.process
 
     @property
-    def name(self):
+    def name(self) -> str:
         """
         The name for the window as displayed in the title bar and status bar.
         """
@@ -88,16 +86,16 @@ class Pane(object):
             if name:
                 return os.path.basename(name)
 
-        return ''
+        return ""
 
-    def enter_copy_mode(self):
+    def enter_copy_mode(self) -> None:
         """
         Suspend the process, and copy the screen content to the `scroll_buffer`.
         That way the user can search through the history and copy/paste.
         """
         self.terminal.enter_copy_mode()
 
-    def focus(self):
+    def focus(self) -> None:
         """
         Focus this pane.
         """
@@ -114,6 +112,7 @@ class _WeightsDictionary(weakref.WeakKeyDictionary):
     This dictionary maps the child (another HSplit/VSplit or Pane), to the
     size. (Integer.)
     """
+
     def __getitem__(self, key):
         try:
             # (Don't use 'super' here. This is a classobj in Python2.)
@@ -127,6 +126,7 @@ class _Split(list):
     Base class for horizontal and vertical splits. (This is a higher level
     split than prompt_toolkit.layout.HSplit.)
     """
+
     def __init__(self, *a, **kw):
         list.__init__(self, *a, **kw)
 
@@ -138,7 +138,7 @@ class _Split(list):
         return id(self)
 
     def __repr__(self):
-        return '%s(%s)' % (self.__class__.__name__, list.__repr__(self))
+        return "%s(%s)" % (self.__class__.__name__, list.__repr__(self))
 
 
 class HSplit(_Split):
@@ -149,10 +149,11 @@ class VSplit(_Split):
     """ Horizontal split. """
 
 
-class Window(object):
+class Window:
     """
     Pymux window.
     """
+
     _window_counter = 1000  # Start here, to avoid confusion with window index.
 
     def __init__(self, index=0):
@@ -178,8 +179,8 @@ class Window(object):
         Return a hash (string) that can be used to determine when the layout
         has to be rebuild.
         """
-#        if not self.root:
-#            return '<empty-window>'
+        #        if not self.root:
+        #            return '<empty-window>'
 
         def _hash_for_split(split):
             result = []
@@ -187,15 +188,18 @@ class Window(object):
                 if isinstance(item, (VSplit, HSplit)):
                     result.append(_hash_for_split(item))
                 elif isinstance(item, Pane):
-                    result.append('p%s' % item.pane_id)
+                    result.append("p%s" % item.pane_id)
 
             if isinstance(split, HSplit):
-                return 'HSplit(%s)' % (','.join(result))
+                return "HSplit(%s)" % (",".join(result))
             else:
-                return 'VSplit(%s)' % (','.join(result))
+                return "VSplit(%s)" % (",".join(result))
 
-        return '<window_id=%s,zoom=%s,children=%s>' % (
-            self.window_id, self.zoom, _hash_for_split(self.root))
+        return "<window_id=%s,zoom=%s,children=%s>" % (
+            self.window_id,
+            self.zoom,
+            _hash_for_split(self.root),
+        )
 
     @property
     def active_pane(self):
@@ -205,9 +209,7 @@ class Window(object):
         return self._active_pane
 
     @active_pane.setter
-    def active_pane(self, value):
-        assert isinstance(value, Pane)
-
+    def active_pane(self, value: Pane):
         # Remember previous active pane.
         if self._active_pane:
             self._prev_active_pane = weakref.ref(self._active_pane)
@@ -240,15 +242,12 @@ class Window(object):
             if pane:
                 return pane.name
 
-        return ''
+        return ""
 
-    def add_pane(self, pane, vsplit=False):
+    def add_pane(self, pane: Pane, vsplit: bool = False) -> None:
         """
         Add another pane to this Window.
         """
-        assert isinstance(pane, Pane)
-        assert isinstance(vsplit, bool)
-
         split_cls = VSplit if vsplit else HSplit
 
         if self.active_pane is None:
@@ -272,12 +271,10 @@ class Window(object):
         self.active_pane = pane
         self.zoom = False
 
-    def remove_pane(self, pane):
+    def remove_pane(self, pane: Pane) -> None:
         """
         Remove pane from this Window.
         """
-        assert isinstance(pane, Pane)
-
         if pane in self.panes:
             # When this pane was focused, switch to previous active or next in order.
             if pane == self.active_pane:
@@ -354,7 +351,9 @@ class Window(object):
         " Focus the next pane. "
         panes = self.panes
         if panes:
-            self.active_pane = panes[(panes.index(self.active_pane) + count) % len(panes)]
+            self.active_pane = panes[
+                (panes.index(self.active_pane) + count) % len(panes)
+            ]
         else:
             self.active_pane = None  # No panes left.
 
@@ -381,10 +380,10 @@ class Window(object):
 
         # Only before after? Reduce list of panes.
         if with_pane_before_only:
-            items = items[current_pane_index - 1:current_pane_index + 1]
+            items = items[current_pane_index - 1 : current_pane_index + 1]
 
         elif with_pane_after_only:
-            items = items[current_pane_index:current_pane_index + 2]
+            items = items[current_pane_index : current_pane_index + 2]
 
         # Rotate positions.
         for i, triple in enumerate(items):
@@ -417,22 +416,26 @@ class Window(object):
 
         # main-horizontal.
         elif layout_type == LayoutTypes.MAIN_HORIZONTAL:
-            self.root = HSplit([
-                self.active_pane,
-                VSplit([p for p in self.panes if p != self.active_pane])
-            ])
+            self.root = HSplit(
+                [
+                    self.active_pane,
+                    VSplit([p for p in self.panes if p != self.active_pane]),
+                ]
+            )
 
         # main-vertical.
         elif layout_type == LayoutTypes.MAIN_VERTICAL:
-            self.root = VSplit([
-                self.active_pane,
-                HSplit([p for p in self.panes if p != self.active_pane])
-            ])
+            self.root = VSplit(
+                [
+                    self.active_pane,
+                    HSplit([p for p in self.panes if p != self.active_pane]),
+                ]
+            )
 
         # tiled.
         elif layout_type == LayoutTypes.TILED:
             panes = self.panes
-            column_count = math.ceil(len(panes) ** .5)
+            column_count = math.ceil(len(panes) ** 0.5)
 
             rows = HSplit()
             current_row = VSplit()
@@ -482,12 +485,11 @@ class Window(object):
         child = self.active_pane
         self.change_size_for_pane(child, up=up, right=right, down=down, left=left)
 
-    def change_size_for_pane(self, pane, up=0, right=0, down=0, left=0):
+    def change_size_for_pane(self, pane: Pane, up=0, right=0, down=0, left=0):
         """
         Increase the size of the current pane in any of the four directions.
         Positive values indicate an increase, negative values a decrease.
         """
-        assert isinstance(pane, Pane)
 
         def find_split_and_child(split_cls, is_before):
             " Find the split for which we will have to update the weights. "
@@ -495,9 +497,11 @@ class Window(object):
             split = self._get_parent(child)
 
             def found():
-                return isinstance(split, split_cls) and (
-                    not is_before or split.index(child) > 0) and (
-                        is_before or split.index(child) < len(split) - 1)
+                return (
+                    isinstance(split, split_cls)
+                    and (not is_before or split.index(child) > 0)
+                    and (is_before or split.index(child) < len(split) - 1)
+                )
 
             while split and not found():
                 child = split
@@ -532,27 +536,28 @@ class Window(object):
                     # case it's logical to move the left border to the right
                     # instead.
                     if not trying_other_side:
-                        handle_side(split_cls, not is_before, -amount,
-                                    trying_other_side=True)
+                        handle_side(
+                            split_cls, not is_before, -amount, trying_other_side=True
+                        )
 
         handle_side(VSplit, True, left)
         handle_side(VSplit, False, right)
         handle_side(HSplit, True, up)
         handle_side(HSplit, False, down)
 
-    def get_pane_index(self, pane):
+    def get_pane_index(self, pane: Pane):
         " Return the index of the given pane. ValueError if not found. "
-        assert isinstance(pane, Pane)
         return self.panes.index(pane)
 
 
-class Arrangement(object):
+class Arrangement:
     """
     Arrangement class for one Pymux session.
     This contains the list of windows and the layout of the panes for each
     window. All the clients share the same Arrangement instance, but they can
     have different windows active.
     """
+
     def __init__(self):
         self.windows = []
         self.base_index = 0
@@ -569,7 +574,7 @@ class Arrangement(object):
         When this changes, the layout needs to be rebuild.
         """
         if not self.windows:
-            return '<no-windows>'
+            return "<no-windows>"
 
         w = self.get_active_window()
         return w.invalidation_hash()
@@ -583,11 +588,12 @@ class Arrangement(object):
         try:
             return self._active_window_for_cli[app]
         except KeyError:
-            self._active_window_for_cli[app] = self._last_active_window or self.windows[0]
+            self._active_window_for_cli[app] = (
+                self._last_active_window or self.windows[0]
+            )
             return self.windows[0]
 
-    def set_active_window(self, window):
-        assert isinstance(window, Window)
+    def set_active_window(self, window: Window):
         app = get_app()
 
         previous = self.get_active_window()
@@ -595,12 +601,10 @@ class Arrangement(object):
         self._active_window_for_cli[app] = window
         self._last_active_window = window
 
-    def set_active_window_from_pane_id(self, pane_id):
+    def set_active_window_from_pane_id(self, pane_id: int):
         """
         Make the window with this pane ID the active Window.
         """
-        assert isinstance(pane_id, int)
-
         for w in self.windows:
             for p in w.panes:
                 if p.pane_id == pane_id:
@@ -621,7 +625,7 @@ class Arrangement(object):
             if w.index == index:
                 return w
 
-    def create_window(self, pane, name=None, set_active=True):
+    def create_window(self, pane: Pane, name: Optional[str] = None, set_active=True):
         """
         Create a new window that contains just this pane.
 
@@ -629,9 +633,6 @@ class Arrangement(object):
         :param name: If given, name for the new window.
         :param set_active: When True, focus the new window.
         """
-        assert isinstance(pane, Pane)
-        assert name is None or isinstance(name, six.text_type)
-
         # Take the first available index.
         taken_indexes = [w.index for w in self.windows]
 
@@ -658,13 +659,10 @@ class Arrangement(object):
         assert w.active_pane == pane
         assert w._get_parent(pane)
 
-    def move_window(self, window, new_index):
+    def move_window(self, window: Window, new_index: int):
         """
         Move window to a new index.
         """
-        assert isinstance(window, Window)
-        assert isinstance(new_index, int)
-
         window.index = new_index
 
         # Sort windows by index.
@@ -678,12 +676,10 @@ class Arrangement(object):
         if w is not None:
             return w.active_pane
 
-    def remove_pane(self, pane):
+    def remove_pane(self, pane: Pane):
         """
         Remove a :class:`.Pane`. (Look in all windows.)
         """
-        assert isinstance(pane, Pane)
-
         for w in self.windows:
             w.remove_pane(pane)
 
@@ -700,14 +696,16 @@ class Arrangement(object):
     def focus_previous_window(self):
         w = self.get_active_window()
 
-        self.set_active_window(self.windows[
-            (self.windows.index(w) - 1) % len(self.windows)])
+        self.set_active_window(
+            self.windows[(self.windows.index(w) - 1) % len(self.windows)]
+        )
 
     def focus_next_window(self):
         w = self.get_active_window()
 
-        self.set_active_window(self.windows[
-            (self.windows.index(w) + 1) % len(self.windows)])
+        self.set_active_window(
+            self.windows[(self.windows.index(w) + 1) % len(self.windows)]
+        )
 
     def break_pane(self, set_active=True):
         """

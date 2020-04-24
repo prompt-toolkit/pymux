@@ -1,14 +1,13 @@
-from __future__ import unicode_literals
 from prompt_toolkit.filters import Filter
 
 __all__ = (
-    'HasPrefix',
-    'WaitsForConfirmation',
-    'InCommandMode',
-    'WaitsForPrompt',
-    'InScrollBuffer',
-    'InScrollBufferNotSearching',
-    'InScrollBufferSearching',
+    "HasPrefix",
+    "WaitsForConfirmation",
+    "InCommandMode",
+    "WaitsForPrompt",
+    "InScrollBuffer",
+    "InScrollBufferNotSearching",
+    "InScrollBufferSearching",
 )
 
 
@@ -16,6 +15,7 @@ class HasPrefix(Filter):
     """
     When the prefix key (Usual C-b) has been pressed.
     """
+
     def __init__(self, pymux):
         self.pymux = pymux
 
@@ -27,6 +27,7 @@ class WaitsForConfirmation(Filter):
     """
     Waiting for a yes/no key press.
     """
+
     def __init__(self, pymux):
         self.pymux = pymux
 
@@ -38,6 +39,7 @@ class InCommandMode(Filter):
     """
     When ':' has been pressed.'
     """
+
     def __init__(self, pymux):
         self.pymux = pymux
 
@@ -50,6 +52,7 @@ class WaitsForPrompt(Filter):
     """
     Waiting for input for a "command-prompt" command.
     """
+
     def __init__(self, pymux):
         self.pymux = pymux
 
@@ -61,7 +64,11 @@ class WaitsForPrompt(Filter):
 def _confirm_or_prompt_or_command(pymux):
     " True when we are waiting for a command, prompt or confirmation. "
     client_state = pymux.get_client_state()
-    if client_state.confirm_text or client_state.prompt_command or client_state.command_mode:
+    if (
+        client_state.confirm_text
+        or client_state.prompt_command
+        or client_state.command_mode
+    ):
         return True
 
 

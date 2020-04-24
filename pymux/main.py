@@ -1,6 +1,14 @@
-from __future__ import unicode_literals
-
+import contextvars
+import os
+import signal
+import sys
+import tempfile
+import threading
+import time
+import traceback
+import weakref
 from asyncio import Future, get_event_loop
+from typing import Optional
 
 from prompt_toolkit.application import Application
 from prompt_toolkit.application.current import get_app, set_app
@@ -13,14 +21,18 @@ from prompt_toolkit.input.defaults import create_input
 from prompt_toolkit.key_binding.vi_state import InputMode
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.output.defaults import create_output
-from prompt_toolkit.styles import ConditionalStyleTransformation, SwapLightAndDarkStyleTransformation
+from prompt_toolkit.styles import (
+    ConditionalStyleTransformation,
+    SwapLightAndDarkStyleTransformation,
+)
+from ptterm import Terminal
 
 from .arrangement import Arrangement, Pane, Window
-from .commands.commands import handle_command, call_command_handler
+from .commands.commands import call_command_handler, handle_command
 from .commands.completer import create_command_completer
 from .enums import COMMAND, PROMPT
 from .key_bindings import PymuxKeyBindings
-from .layout import LayoutManager, Justify
+from .layout import Justify, LayoutManager
 from .log import logger
 from .options import ALL_OPTIONS, ALL_WINDOW_OPTIONS
 from .pipes import bind_and_listen_on_socket
@@ -28,28 +40,17 @@ from .rc import STARTUP_COMMANDS
 from .server import ServerConnection
 from .style import ui_style
 from .utils import get_default_shell
-from ptterm import Terminal
-
-import contextvars
-import os
-import signal
-import six
-import sys
-import tempfile
-import threading
-import time
-import traceback
-import weakref
 
 __all__ = [
-    'Pymux',
+    "Pymux",
 ]
 
 
-class ClientState(object):
+class ClientState:
     """
     State information that is independent for each client.
     """
+
     def __init__(self, pymux, input, output, color_depth, connection):
         self.pymux = pymux
         self.input = input
@@ -83,13 +84,15 @@ class ClientState(object):
             auto_suggest=AutoSuggestFromHistory(),
             multiline=False,
             complete_while_typing=False,
-            completer=create_command_completer(pymux))
+            completer=create_command_completer(pymux),
+        )
 
         self.prompt_buffer = Buffer(
             name=PROMPT,
             accept_handler=self._handle_prompt_command,
             multiline=False,
-            auto_suggest=AutoSuggestFromHistory())
+            auto_suggest=AutoSuggestFromHistory(),
+        )
 
         # Layout.
         self.layout_manager = LayoutManager(self.pymux, self)
@@ -100,6 +103,7 @@ class ClientState(object):
         # during rendering).
         def before_render(_):
             self.layout_manager.reset_write_positions()
+
         self.app.before_render += before_render
 
     @property
@@ -124,7 +128,7 @@ class ClientState(object):
 
         # Leave command mode and handle command.
         self.pymux.leave_command_mode(append_to_history=True)
-        self.pymux.handle_command(prompt_command.replace('%%', text))
+        self.pymux.handle_command(prompt_command.replace("%%", text))
 
     def _create_app(self):
         """
@@ -147,7 +151,6 @@ class ClientState(object):
             output=self.output,
             input=self.input,
             color_depth=self.color_depth,
-
             layout=Layout(container=self.layout_manager.layout),
             key_bindings=pymux.key_bindings_manager.key_bindings,
             mouse_support=Condition(lambda: pymux.enable_mouse_support),
@@ -157,7 +160,8 @@ class ClientState(object):
                 SwapLightAndDarkStyleTransformation(),
                 Condition(lambda: self.pymux.swap_dark_and_light),
             ),
-            on_invalidate=(lambda _: pymux.invalidate()))
+            on_invalidate=(lambda _: pymux.invalidate()),
+        )
 
         # Synchronize the Vi state with the CLI object.
         # (This is stored in the current class, but expected to be in the
@@ -179,11 +183,12 @@ class ClientState(object):
         # This small change ensures that if for a split second a process
         # outputs a lot of information, we don't give the highest priority to
         # rendering output. (Nobody reads that fast in real-time.)
-        app.max_render_postpone_time = .1  # Second.
+        app.max_render_postpone_time = 0.1  # Second.
 
         # Hide message when a key has been pressed.
         def key_pressed(_):
             self.message = None
+
         app.key_processor.before_key_press += key_pressed
 
         # The following code needs to run with the application active.
@@ -213,11 +218,11 @@ class ClientState(object):
 
         # Custom prompt.
         if self.prompt_command:
-            return # Focus prompt
+            return  # Focus prompt
 
         # Command mode.
         if self.command_mode:
-            return # Focus command
+            return  # Focus command
 
         # No windows left, return. We will quit soon.
         if not self.pymux.arrangement.windows:
@@ -227,7 +232,7 @@ class ClientState(object):
         self.app.layout.focus(pane.terminal)
 
 
-class Pymux(object):
+class Pymux:
     """
     The main Pymux application class.
 
@@ -242,27 +247,28 @@ class Pymux(object):
         p = Pymux()
         p.run_standalone()
     """
+
     def __init__(self, source_file=None, startup_command=None):
         self._client_states = {}  # connection -> client_state
 
         # Options
         self.enable_mouse_support = True
         self.enable_status = True
-        self.enable_pane_status = True#False
+        self.enable_pane_status = True  # False
         self.enable_bell = True
         self.remain_on_exit = False
         self.status_keys_vi_mode = False
         self.mode_keys_vi_mode = False
         self.history_limit = 2000
         self.status_interval = 4
-        self.default_terminal = 'xterm-256color'
-        self.status_left = '[#S] '
+        self.default_terminal = "xterm-256color"
+        self.status_left = "[#S] "
         self.status_left_length = 20
-        self.status_right = ' %H:%M %d-%b-%y '
+        self.status_right = " %H:%M %d-%b-%y "
         self.status_right_length = 20
-        self.window_status_current_format = '#I:#W#F'
-        self.window_status_format = '#I:#W#F'
-        self.session_name = '0'
+        self.window_status_current_format = "#I:#W#F"
+        self.window_status_format = "#I:#W#F"
+        self.session_name = "0"
         self.status_justify = Justify.LEFT
         self.default_shell = get_default_shell()
         self.swap_dark_and_light = False
@@ -303,6 +309,7 @@ class Pymux(object):
         Start the background thread that auto refreshes all clients according to
         `self.status_interval`.
         """
+
         def run():
             while True:
                 time.sleep(self.status_interval)
@@ -323,7 +330,7 @@ class Pymux(object):
             if client_state.app == app:
                 return client_state
 
-        raise ValueError('Client state for app %r not found' % (app, ))
+        raise ValueError("Client state for app %r not found" % (app,))
 
     def get_connection(self):
         " Return the active Connection instance. "
@@ -332,7 +339,7 @@ class Pymux(object):
             if client_state.app == app:
                 return connection
 
-        raise ValueError('Connection for app %r not found' % (app, ))
+        raise ValueError("Connection for app %r not found" % (app,))
 
     def startup(self):
         # Handle start-up comands.
@@ -346,7 +353,7 @@ class Pymux(object):
 
             # Source the given file.
             if self.source_file:
-                call_command_handler('source-file', self, [self.source_file])
+                call_command_handler("source-file", self, [self.source_file])
 
             # Make sure that there is one window created.
             self.create_window(command=self.startup_command)
@@ -360,18 +367,19 @@ class Pymux(object):
         if w and w.active_process:
             title = w.active_process.screen.title
         else:
-            title = ''
+            title = ""
 
         if title:
-            return '%s - Pymux' % (title, )
+            return "%s - Pymux" % (title,)
         else:
-            return 'Pymux'
+            return "Pymux"
 
     def get_window_size(self):
         """
         Get the size to be used for the DynamicBody.
         This will be the smallest size of all clients.
         """
+
         def active_window_for_app(app):
             with set_app(app):
                 return self.arrangement.get_active_window()
@@ -379,20 +387,29 @@ class Pymux(object):
         active_window = self.arrangement.get_active_window()
 
         # Get sizes for connections watching the same window.
-        apps = [client_state.app for client_state in self._client_states.values()
-                if active_window_for_app(client_state.app) == active_window]
+        apps = [
+            client_state.app
+            for client_state in self._client_states.values()
+            if active_window_for_app(client_state.app) == active_window
+        ]
         sizes = [app.output.get_size() for app in apps]
 
         rows = [s.rows for s in sizes]
         columns = [s.columns for s in sizes]
 
         if rows and columns:
-            return Size(rows=min(rows) - (1 if self.enable_status else 0),
-                        columns=min(columns))
+            return Size(
+                rows=min(rows) - (1 if self.enable_status else 0), columns=min(columns)
+            )
         else:
             return Size(rows=20, columns=80)
 
-    def _create_pane(self, window=None, command=None, start_directory=None):
+    def _create_pane(
+        self,
+        window: Optional[Window] = None,
+        command: Optional[str] = None,
+        start_directory: Optional[str] = None,
+    ):
         """
         Create a new :class:`pymux.arrangement.Pane` instance. (Don't put it in
         a window yet.)
@@ -402,9 +419,6 @@ class Pymux(object):
         :param command: If given, run this command instead of `self.default_shell`.
         :param start_directory: If given, use this as the CWD.
         """
-        assert window is None or isinstance(window, Window)
-        assert command is None or isinstance(command, six.text_type)
-        assert start_directory is None or isinstance(start_directory, six.text_type)
 
         def done_callback():
             " When the process finishes. "
@@ -429,6 +443,8 @@ class Pymux(object):
                     c.output.bell()
 
         # Start directory.
+        path: Optional[str]
+
         if start_directory:
             path = start_directory
         elif window and window.active_process:
@@ -447,34 +463,37 @@ class Pymux(object):
                 pass  # No such file or directory.
 
             # Set terminal variable. (We emulate xterm.)
-            os.environ['TERM'] = self.default_terminal
+            os.environ["TERM"] = self.default_terminal
 
             # Make sure to set the PYMUX environment variable.
             if self.socket_name:
-                os.environ['PYMUX'] = '%s,%i' % (
-                    self.socket_name, pane.pane_id)
+                os.environ["PYMUX"] = "%s,%i" % (self.socket_name, pane.pane_id)
 
         if command:
-            command = command.split()
+            command_list = command.split()
         else:
-            command = [self.default_shell]
+            command_list = [self.default_shell]
 
         # Create new pane and terminal.
-        terminal = Terminal(done_callback=done_callback, bell_func=bell,
-                            before_exec_func=before_exec)
+        terminal = Terminal(
+            done_callback=done_callback,
+            bell_func=bell,
+            before_exec_func=before_exec,
+            command=command_list,
+        )
         pane = Pane(terminal)
 
         # Keep track of panes. This is a WeakKeyDictionary, we only add, but
         # don't remove.
         self.panes_by_id[pane.pane_id] = pane
 
-        logger.info('Created process %r.', command)
+        logger.info("Created process %r.", command_list)
 
         return pane
 
     def invalidate(self):
         " Invalidate the UI for all clients. "
-        logger.info('Invalidating %s applications', len(self.apps))
+        logger.info("Invalidating %s applications", len(self.apps))
 
         for app in self.apps:
             app.invalidate()
@@ -484,26 +503,30 @@ class Pymux(object):
             app.exit()
         self.done_f.set_result(None)
 
-    def create_window(self, command=None, start_directory=None, name=None):
+    def create_window(
+        self,
+        command: Optional[str] = None,
+        start_directory: Optional[str] = None,
+        name=None,
+    ):
         """
         Create a new :class:`pymux.arrangement.Window` in the arrangement.
         """
-        assert command is None or isinstance(command, six.text_type)
-        assert start_directory is None or isinstance(start_directory, six.text_type)
-
         pane = self._create_pane(None, command, start_directory=start_directory)
 
         self.arrangement.create_window(pane, name=name)
         pane.focus()
         self.invalidate()
 
-    def add_process(self, command=None, vsplit=False, start_directory=None):
+    def add_process(
+        self,
+        command: Optional[str] = None,
+        vsplit: bool = False,
+        start_directory: Optional[str] = None,
+    ):
         """
         Add a new process to the current window. (vsplit/hsplit).
         """
-        assert command is None or isinstance(command, six.text_type)
-        assert start_directory is None or isinstance(start_directory, six.text_type)
-
         window = self.arrangement.get_active_window()
 
         pane = self._create_pane(window, command, start_directory=start_directory)
@@ -511,12 +534,10 @@ class Pymux(object):
         pane.focus()
         self.invalidate()
 
-    def kill_pane(self, pane):
+    def kill_pane(self, pane: Pane) -> None:
         """
         Kill the given pane, and remove it from the arrangement.
         """
-        assert isinstance(pane, Pane)
-
         # Send kill signal.
         if not pane.process.is_terminated:
             pane.process.kill()
@@ -533,8 +554,8 @@ class Pymux(object):
         client_state.command_buffer.reset(append_to_history=append_to_history)
         client_state.prompt_buffer.reset(append_to_history=True)
 
-        client_state.prompt_command = ''
-        client_state.confirm_command = ''
+        client_state.prompt_command = ""
+        client_state.confirm_command = ""
 
         client_state.app.layout.focus_previous()
 
@@ -569,6 +590,7 @@ class Pymux(object):
         Listen for clients on a Unix socket.
         Returns the socket name.
         """
+
         def connection_cb(pipe_connection):
             # We have to create a new `context`, because this will be the scope for
             # a new prompt_toolkit.Application to become active.
@@ -580,10 +602,10 @@ class Pymux(object):
         self.socket_name = bind_and_listen_on_socket(socket_name, connection_cb)
 
         # Set session_name according to socket name.
-#        if '.' in self.socket_name:
-#            self.session_name = self.socket_name.rpartition('.')[-1]
+        #        if '.' in self.socket_name:
+        #            self.session_name = self.socket_name.rpartition('.')[-1]
 
-        logger.info('Listening on %r.' % self.socket_name)
+        logger.info("Listening on %r." % self.socket_name)
         return self.socket_name
 
     def run_server(self):
@@ -591,7 +613,7 @@ class Pymux(object):
         # Pymux has to be terminated by termining all the processes running in
         # its panes.
         def handle_sigint(*a):
-            print('Ignoring keyboard interrupt.')
+            print("Ignoring keyboard interrupt.")
 
         signal.signal(signal.SIGINT, handle_sigint)
 
@@ -605,10 +627,9 @@ class Pymux(object):
             # When something bad happens, always dump the traceback.
             # (Otherwise, when running as a daemon, and stdout/stderr are not
             # available, it's hard to see what went wrong.)
-            fd, path = tempfile.mkstemp(prefix='pymux.crash-')
-            logger.fatal(
-                'Pymux has crashed, dumping traceback to {0}'.format(path))
-            os.write(fd, traceback.format_exc().encode('utf-8'))
+            fd, path = tempfile.mkstemp(prefix="pymux.crash-")
+            logger.fatal("Pymux has crashed, dumping traceback to {0}".format(path))
+            os.write(fd, traceback.format_exc().encode("utf-8"))
             os.close(fd)
             raise
 
@@ -628,16 +649,15 @@ class Pymux(object):
             input=create_input(),
             output=create_output(stdout=sys.stdout),
             color_depth=color_depth,
-            connection=None)
+            connection=None,
+        )
 
         client_state.app.run()
 
     def add_client(self, output, input, color_depth, connection):
-        client_state = ClientState(self,
-            connection=None,
-            input=input,
-            output=output,
-            color_depth=color_depth)
+        client_state = ClientState(
+            self, connection=None, input=input, output=output, color_depth=color_depth
+        )
 
         self._client_states[connection] = client_state
 

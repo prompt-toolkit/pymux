@@ -1,17 +1,22 @@
-from __future__ import unicode_literals
-from asyncio import ensure_future, Future
-from ctypes import windll, byref
+from asyncio import Future, ensure_future
+from ctypes import byref, windll
 from ctypes.wintypes import DWORD
+
 from ptterm.backends.win32_pipes import OVERLAPPED
 
-from .win32 import wait_for_event, create_event, read_message_from_pipe, write_message_to_pipe
-from .base import PipeConnection, BrokenPipeError
 from ..log import logger
+from .base import BrokenPipeError, PipeConnection
+from .win32 import (
+    create_event,
+    read_message_from_pipe,
+    wait_for_event,
+    write_message_to_pipe,
+)
 
 __all__ = [
-    'bind_and_listen_on_win32_socket',
-    'Win32PipeConnection',
-    'PipeInstance',
+    "bind_and_listen_on_win32_socket",
+    "Win32PipeConnection",
+    "PipeInstance",
 ]
 
 
@@ -28,7 +33,7 @@ PIPE_WAIT = 0x00000000
 PIPE_NOWAIT = 0x00000001
 
 ERROR_IO_PENDING = 997
-ERROR_BROKEN_PIPE= 109
+ERROR_BROKEN_PIPE = 109
 ERROR_NO_DATA = 232
 
 CONNECTING_STATE = 0
@@ -42,10 +47,12 @@ def bind_and_listen_on_win32_socket(socket_name, accept_callback):
         connection is established.
     """
     assert callable(accept_callback)
-    socket_name = r'\\.\pipe\pymux.sock.jonathan.42'
+    socket_name = r"\\.\pipe\pymux.sock.jonathan.42"
 
-    pipes = [PipeInstance(socket_name, pipe_connection_cb=accept_callback)
-             for i in range(INSTANCES)]
+    pipes = [
+        PipeInstance(socket_name, pipe_connection_cb=accept_callback)
+        for i in range(INSTANCES)
+    ]
 
     for p in pipes:
         # Start pipe.
@@ -58,6 +65,7 @@ class Win32PipeConnection(PipeConnection):
     """
     A single active Win32 pipe connection on the server side.
     """
+
     def __init__(self, pipe_instance):
         assert isinstance(pipe_instance, PipeInstance)
         self.pipe_instance = pipe_instance
@@ -96,24 +104,30 @@ class Win32PipeConnection(PipeConnection):
         pass
 
 
-class PipeInstance(object):
-    def __init__(self, pipe_name, instances=INSTANCES, buffsize=BUFSIZE,
-                 timeout=5000, pipe_connection_cb=None):
+class PipeInstance:
+    def __init__(
+        self,
+        pipe_name,
+        instances=INSTANCES,
+        buffsize=BUFSIZE,
+        timeout=5000,
+        pipe_connection_cb=None,
+    ):
 
         self.pipe_handle = windll.kernel32.CreateNamedPipeW(
             pipe_name,  # Pipe name.
             PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,
             PIPE_TYPE_MESSAGE | PIPE_READMODE_MESSAGE | PIPE_WAIT,
-            DWORD(instances), # Max instances. (TODO: increase).
+            DWORD(instances),  # Max instances. (TODO: increase).
             DWORD(buffsize),  # Output buffer size.
             DWORD(buffsize),  # Input buffer size.
             DWORD(timeout),  # Client time-out.
-            None, # Default security attributes.
+            None,  # Default security attributes.
         )
         self.pipe_connection_cb = pipe_connection_cb
 
         if not self.pipe_handle:
-            raise Exception('invalid pipe')
+            raise Exception("invalid pipe")
 
     def handle_pipe(self):
         """
@@ -129,19 +143,19 @@ class PipeInstance(object):
         while True:
             try:
                 # Wait for connection.
-                logger.info('Waiting for connection in pipe instance.')
+                logger.info("Waiting for connection in pipe instance.")
                 yield From(self._connect_client())
-                logger.info('Connected in pipe instance')
+                logger.info("Connected in pipe instance")
 
                 conn = Win32PipeConnection(self)
                 self.pipe_connection_cb(conn)
 
                 yield From(conn.done_f)
-                logger.info('Pipe instance done.')
+                logger.info("Pipe instance done.")
 
             finally:
                 # Disconnect and reconnect.
-                logger.info('Disconnecting pipe instance.')
+                logger.info("Disconnecting pipe instance.")
                 windll.kernel32.DisconnectNamedPipe(self.pipe_handle)
 
     def _connect_client(self):
@@ -153,8 +167,8 @@ class PipeInstance(object):
 
         while True:
             success = windll.kernel32.ConnectNamedPipe(
-                self.pipe_handle,
-                byref(overlapped))
+                self.pipe_handle, byref(overlapped)
+            )
 
             if success:
                 return
@@ -167,4 +181,4 @@ class PipeInstance(object):
                 return  # Connection succeeded.
 
             else:
-                raise Exception('connect failed with error code' + str(last_error))
+                raise Exception("connect failed with error code" + str(last_error))

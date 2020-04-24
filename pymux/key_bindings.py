@@ -1,28 +1,26 @@
 """
 Key bindings.
 """
-from __future__ import unicode_literals
-from prompt_toolkit.filters import has_focus, Condition, has_selection
+from typing import Callable
+
+from prompt_toolkit.filters import Filter, Condition, has_focus, has_selection
+from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 from prompt_toolkit.keys import Keys
 from prompt_toolkit.selection import SelectionType
-from prompt_toolkit.key_binding import KeyBindings, merge_key_bindings
 
-from .enums import COMMAND, PROMPT
-from .filters import WaitsForConfirmation, HasPrefix, InScrollBufferNotSearching
-from .key_mappings import pymux_key_to_prompt_toolkit_key_sequence
 from .commands.commands import call_command_handler
+from .enums import COMMAND, PROMPT
+from .filters import HasPrefix, InScrollBufferNotSearching, WaitsForConfirmation
+from .key_mappings import pymux_key_to_prompt_toolkit_key_sequence
 
-import six
-
-__all__ = (
-    'PymuxKeyBindings',
-)
+__all__ = ("PymuxKeyBindings",)
 
 
-class PymuxKeyBindings(object):
+class PymuxKeyBindings:
     """
     Pymux key binding manager.
     """
+
     def __init__(self, pymux):
         self.pymux = pymux
 
@@ -32,12 +30,11 @@ class PymuxKeyBindings(object):
 
         self.custom_key_bindings = KeyBindings()
 
-        self.key_bindings = merge_key_bindings([
-            self._load_builtins(),
-            self.custom_key_bindings,
-        ])
+        self.key_bindings = merge_key_bindings(
+            [self._load_builtins(), self.custom_key_bindings,]
+        )
 
-        self._prefix = ('c-b', )
+        self._prefix = ("c-b",)
         self._prefix_binding = None
 
         # Load initial bindings.
@@ -58,9 +55,15 @@ class PymuxKeyBindings(object):
             self.custom_key_bindings.remove_binding(self._prefix_binding)
 
         # Create new Python binding.
-        @self.custom_key_bindings.add(*self._prefix, filter=
-            ~(HasPrefix(pymux) | has_focus(COMMAND) | has_focus(PROMPT) |
-              WaitsForConfirmation(pymux)))
+        @self.custom_key_bindings.add(
+            *self._prefix,
+            filter=~(
+                HasPrefix(pymux)
+                | has_focus(COMMAND)
+                | has_focus(PROMPT)
+                | WaitsForConfirmation(pymux)
+            ),
+        )
         def enter_prefix_handler(event):
             " Enter prefix mode. "
             pymux.get_client_state().has_prefix = True
@@ -73,12 +76,10 @@ class PymuxKeyBindings(object):
         return self._prefix
 
     @prefix.setter
-    def prefix(self, keys):
+    def prefix(self, keys: tuple):
         """
         Set a new prefix key.
         """
-        assert isinstance(keys, tuple)
-
         self._prefix = keys
         self._load_prefix_binding()
 
@@ -101,16 +102,16 @@ class PymuxKeyBindings(object):
             " Ignore unknown Ctrl-B prefixed key sequences. "
             pymux.get_client_state().has_prefix = False
 
-        @kb.add('c-c', filter=prompt_or_command_focus & ~has_prefix)
-        @kb.add('c-g', filter=prompt_or_command_focus & ~has_prefix)
-#        @kb.add('backspace', filter=has_focus(COMMAND) & ~has_prefix &
-#                              Condition(lambda: cli.buffers[COMMAND].text == ''))
+        @kb.add("c-c", filter=prompt_or_command_focus & ~has_prefix)
+        @kb.add("c-g", filter=prompt_or_command_focus & ~has_prefix)
+        #        @kb.add('backspace', filter=has_focus(COMMAND) & ~has_prefix &
+        #                              Condition(lambda: cli.buffers[COMMAND].text == ''))
         def _(event):
             " Leave command mode. "
             pymux.leave_command_mode(append_to_history=False)
 
-        @kb.add('y', filter=waits_for_confirmation)
-        @kb.add('Y', filter=waits_for_confirmation)
+        @kb.add("y", filter=waits_for_confirmation)
+        @kb.add("Y", filter=waits_for_confirmation)
         def _(event):
             """
             Confirm command.
@@ -123,9 +124,9 @@ class PymuxKeyBindings(object):
 
             pymux.handle_command(command)
 
-        @kb.add('n', filter=waits_for_confirmation)
-        @kb.add('N', filter=waits_for_confirmation)
-        @kb.add('c-c' , filter=waits_for_confirmation)
+        @kb.add("n", filter=waits_for_confirmation)
+        @kb.add("N", filter=waits_for_confirmation)
+        @kb.add("c-c", filter=waits_for_confirmation)
         def _(event):
             """
             Cancel command.
@@ -134,26 +135,28 @@ class PymuxKeyBindings(object):
             client_state.confirm_command = None
             client_state.confirm_text = None
 
-        @kb.add('c-c', filter=in_scroll_buffer_not_searching)
-        @kb.add('enter', filter=in_scroll_buffer_not_searching)
-        @kb.add('q', filter=in_scroll_buffer_not_searching)
+        @kb.add("c-c", filter=in_scroll_buffer_not_searching)
+        @kb.add("enter", filter=in_scroll_buffer_not_searching)
+        @kb.add("q", filter=in_scroll_buffer_not_searching)
         def _(event):
             " Exit scroll buffer. "
             pane = pymux.arrangement.get_active_pane()
             pane.exit_scroll_buffer()
 
-        @kb.add(' ', filter=in_scroll_buffer_not_searching)
+        @kb.add(" ", filter=in_scroll_buffer_not_searching)
         def _(event):
             " Enter selection mode when pressing space in copy mode. "
-            event.current_buffer.start_selection(selection_type=SelectionType.CHARACTERS)
+            event.current_buffer.start_selection(
+                selection_type=SelectionType.CHARACTERS
+            )
 
-        @kb.add('enter', filter=in_scroll_buffer_not_searching & has_selection)
+        @kb.add("enter", filter=in_scroll_buffer_not_searching & has_selection)
         def _(event):
             " Copy selection when pressing Enter. "
             clipboard_data = event.current_buffer.copy_selection()
             event.app.clipboard.set_data(clipboard_data)
 
-        @kb.add('v', filter=in_scroll_buffer_not_searching & has_selection)
+        @kb.add("v", filter=in_scroll_buffer_not_searching & has_selection)
         def _(event):
             " Toggle between selection types. "
             types = [SelectionType.LINES, SelectionType.BLOCK, SelectionType.CHARACTERS]
@@ -170,7 +173,7 @@ class PymuxKeyBindings(object):
         def popup_displayed():
             return self.pymux.get_client_state().display_popup
 
-        @kb.add('q', filter=popup_displayed, eager=True)
+        @kb.add("q", filter=popup_displayed, eager=True)
         def _(event):
             " Quit pop-up dialog. "
             self.pymux.get_client_state().display_popup = False
@@ -194,17 +197,15 @@ class PymuxKeyBindings(object):
 
         return kb
 
-    def add_custom_binding(self, key_name, command, arguments, needs_prefix=False):
+    def add_custom_binding(
+        self, key_name: str, command: str, arguments: list, needs_prefix=False
+    ):
         """
         Add custom binding (for the "bind-key" command.)
         Raises ValueError if the give `key_name` is an invalid name.
 
         :param key_name: Pymux key name, for instance "C-a" or "M-x".
         """
-        assert isinstance(key_name, six.text_type)
-        assert isinstance(command, six.text_type)
-        assert isinstance(arguments, list)
-
         # Unbind previous key.
         self.remove_custom_binding(key_name, needs_prefix=needs_prefix)
 
@@ -213,13 +214,15 @@ class PymuxKeyBindings(object):
         keys_sequence = pymux_key_to_prompt_toolkit_key_sequence(key_name)
 
         # Create handler and add to Registry.
+        filter: Filter
         if needs_prefix:
             filter = HasPrefix(self.pymux)
         else:
             filter = ~HasPrefix(self.pymux)
 
-        filter = filter & ~(WaitsForConfirmation(self.pymux) |
-                            has_focus(COMMAND) | has_focus(PROMPT))
+        filter = filter & ~(
+            WaitsForConfirmation(self.pymux) | has_focus(COMMAND) | has_focus(PROMPT)
+        )
 
         def key_handler(event):
             " The actual key handler. "
@@ -246,15 +249,12 @@ class PymuxKeyBindings(object):
             del self.custom_bindings[k]
 
 
-class CustomBinding(object):
+class CustomBinding:
     """
     Record for storing a single custom key binding.
     """
-    def __init__(self, handler, command, arguments):
-        assert callable(handler)
-        assert isinstance(command, six.text_type)
-        assert isinstance(arguments, list)
 
+    def __init__(self, handler: Callable, command: str, arguments: list):
         self.handler = handler
         self.command = command
         self.arguments = arguments

@@ -1,20 +1,19 @@
 """
 Some utilities.
 """
-from __future__ import unicode_literals
-from prompt_toolkit.utils import is_windows
-
 import os
 import sys
 
+from prompt_toolkit.utils import is_windows
+
 __all__ = (
-    'daemonize',
-    'nonblocking',
-    'get_default_shell',
+    "daemonize",
+    "nonblocking",
+    "get_default_shell",
 )
 
 
-def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
+def daemonize(stdin="/dev/null", stdout="/dev/null", stderr="/dev/null"):
     """
     Double fork-trick. For starting a posix daemon.
 
@@ -56,13 +55,13 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
 
     # Redirect standard file descriptors.
 
-        # NOTE: For debugging, you meight want to take these instead of /dev/null.
+    # NOTE: For debugging, you meight want to take these instead of /dev/null.
     # so = open('/tmp/log2', 'ab+')
     # se = open('/tmp/log2', 'ab+', 0)
 
-    si = open(stdin, 'rb')
-    so = open(stdout, 'ab+')
-    se = open(stderr, 'ab+', 0)
+    si = open(stdin, "rb")
+    so = open(stdout, "ab+")
+    se = open(stderr, "ab+", 0)
     os.dup2(si.fileno(), sys.stdin.fileno())
     os.dup2(so.fileno(), sys.stdout.fileno())
     os.dup2(se.fileno(), sys.stderr.fileno())
@@ -71,20 +70,23 @@ def daemonize(stdin='/dev/null', stdout='/dev/null', stderr='/dev/null'):
     return 1
 
 
-class nonblocking(object):
+class nonblocking:
     """
     Make fd non blocking.
     """
+
     def __init__(self, fd):
         self.fd = fd
 
     def __enter__(self):
         import fcntl
+
         self.orig_fl = fcntl.fcntl(self.fd, fcntl.F_GETFL)
         fcntl.fcntl(self.fd, fcntl.F_SETFL, self.orig_fl | os.O_NONBLOCK)
 
     def __exit__(self, *args):
         import fcntl
+
         fcntl.fcntl(self.fd, fcntl.F_SETFL, self.orig_fl)
 
 
@@ -93,13 +95,13 @@ def get_default_shell():
     return the path to the default shell for the current user.
     """
     if is_windows():
-        return 'cmd.exe'
+        return "cmd.exe"
     else:
         import pwd
         import getpass
 
-        if 'SHELL' in os.environ:
-            return os.environ['SHELL']
+        if "SHELL" in os.environ:
+            return os.environ["SHELL"]
         else:
             username = getpass.getuser()
             shell = pwd.getpwnam(username).pw_shell
