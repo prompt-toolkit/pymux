@@ -6,11 +6,11 @@ import sys
 
 from prompt_toolkit.utils import is_windows
 
-__all__ = (
+__all__ = [
     "daemonize",
     "nonblocking",
     "get_default_shell",
-)
+]
 
 
 def daemonize(stdin="/dev/null", stdout="/dev/null", stderr="/dev/null"):

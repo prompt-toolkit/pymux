@@ -18,10 +18,10 @@ from .base import Client
 
 INPUT_TIMEOUT = 0.5
 
-__all__ = (
+__all__ = [
     "PosixClient",
     "list_clients",
-)
+]
 
 
 class PosixClient(Client):

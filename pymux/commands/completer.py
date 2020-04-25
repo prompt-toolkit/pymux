@@ -9,7 +9,7 @@ from .aliases import ALIASES
 from .commands import COMMANDS_TO_HANDLERS, get_option_flags_for_command
 from .utils import wrap_argument
 
-__all__ = ("create_command_completer",)
+__all__ = ["create_command_completer"]
 
 
 def create_command_completer(pymux):
@@ -57,7 +57,7 @@ class CommandCompleter(Completer):
 
 
 _command_completer = CommandCompleter()
-_layout_type_completer = WordCompleter(sorted(LayoutTypes._ALL), WORD=True)
+_layout_type_completer = WordCompleter(sorted(t.value for t in LayoutTypes), WORD=True)
 _keys_completer = WordCompleter(
     sorted(PYMUX_TO_PROMPT_TOOLKIT_KEYS.keys()), ignore_case=True, WORD=True
 )

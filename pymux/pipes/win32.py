@@ -5,7 +5,6 @@ import asyncio
 from ctypes import byref, create_string_buffer, windll
 from ctypes.wintypes import BOOL, DWORD
 
-from prompt_toolkit.eventloop import Future, get_event_loop
 from ptterm.backends.win32_pipes import OVERLAPPED
 
 from .base import BrokenPipeError
@@ -195,8 +194,8 @@ def wait_for_event(event):
     f = asyncio.Future()
 
     def ready():
-        get_event_loop().remove_win32_handle(event)
+        asyncio.get_event_loop().remove_win32_handle(event)
         f.set_result(None)
 
-    get_event_loop().add_win32_handle(event, ready)
+    asyncio.get_event_loop().add_win32_handle(event, ready)
     return f

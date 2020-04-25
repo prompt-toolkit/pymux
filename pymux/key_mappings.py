@@ -5,11 +5,11 @@ Pymux namings. (Those namings are kept compatible with tmux.)
 from prompt_toolkit.input.vt100_parser import ANSI_SEQUENCES
 from prompt_toolkit.keys import Keys
 
-__all__ = (
+__all__ = [
     "pymux_key_to_prompt_toolkit_key_sequence",
     "prompt_toolkit_key_to_vt100_key",
     "PYMUX_TO_PROMPT_TOOLKIT_KEYS",
-)
+]
 
 
 def pymux_key_to_prompt_toolkit_key_sequence(key):

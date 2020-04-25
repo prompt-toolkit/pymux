@@ -3,11 +3,21 @@ Pymux string formatting.
 """
 import datetime
 import socket
+from typing import TYPE_CHECKING, Optional
 
-__all__ = ("format_pymux_string",)
+if TYPE_CHECKING:
+    from pymux.main import Pymux
+    from pymux.arrangement import Window, Pane
+
+__all__ = ["format_pymux_string"]
 
 
-def format_pymux_string(pymux, string, window=None, pane=None):
+def format_pymux_string(
+    pymux: "Pymux",
+    string: str,
+    window: Optional["Window"] = None,
+    pane: Optional["Pane"] = None,
+) -> str:
     """
     Apply pymux sting formatting. (Similar to tmux.)
     E.g.  #P is replaced by the index of the active pane.

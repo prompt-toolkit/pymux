@@ -1,7 +1,7 @@
-__all__ = ("wrap_argument",)
+__all__ = ["wrap_argument"]
 
 
-def wrap_argument(text):
+def wrap_argument(text: str) -> str:
     """
     Wrap command argument in quotes and escape when this contains special characters.
     """

@@ -51,7 +51,7 @@ class ClientState:
     State information that is independent for each client.
     """
 
-    def __init__(self, pymux, input, output, color_depth, connection):
+    def __init__(self, pymux: "Pymux", input, output, color_depth, connection) -> None:
         self.pymux = pymux
         self.input = input
         self.output = output
@@ -654,7 +654,7 @@ class Pymux:
 
         client_state.app.run()
 
-    def add_client(self, output, input, color_depth, connection):
+    def add_client(self, output, input, color_depth, connection) -> ClientState:
         client_state = ClientState(
             self, connection=None, input=input, output=output, color_depth=color_depth
         )

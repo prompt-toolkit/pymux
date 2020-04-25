@@ -1,6 +1,6 @@
 from prompt_toolkit.filters import Filter
 
-__all__ = (
+__all__ = [
     "HasPrefix",
     "WaitsForConfirmation",
     "InCommandMode",
@@ -8,7 +8,7 @@ __all__ = (
     "InScrollBuffer",
     "InScrollBufferNotSearching",
     "InScrollBufferSearching",
-)
+]
 
 
 class HasPrefix(Filter):

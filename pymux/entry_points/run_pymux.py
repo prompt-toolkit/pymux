@@ -35,10 +35,10 @@ from pymux.client import create_client, list_clients
 from pymux.main import Pymux
 from pymux.utils import daemonize
 
-__all__ = ("run",)
+__all__ = ["run"]
 
 
-def run():
+def run() -> None:
     a = docopt.docopt(__doc__)
     socket_name = a["<socket>"] or os.environ.get("PYMUX")
     socket_name_from_env = not a["<socket>"] and os.environ.get("PYMUX")
@@ -155,7 +155,7 @@ def run():
             sys.exit(1)
 
 
-def _socket_from_env_warning():
+def _socket_from_env_warning() -> None:
     print("Please be careful nesting pymux sessions.")
     print("Unset PYMUX environment variable first.")
 

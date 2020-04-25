@@ -9,33 +9,32 @@ arranged by ordering them in HSplit/VSplit instances.
 """
 import math
 import os
-import weakref
-from typing import Optional
+from enum import Enum
+from typing import Dict, List, Optional, Union
+from weakref import WeakKeyDictionary, ref
 
-from prompt_toolkit.application.current import get_app, get_app_or_none, set_app
+from prompt_toolkit.application import Application, get_app, get_app_or_none, set_app
 from prompt_toolkit.buffer import Buffer
 from ptterm import Terminal
 
-__all__ = (
+__all__ = [
     "LayoutTypes",
     "Pane",
     "HSplit",
     "VSplit",
     "Window",
     "Arrangement",
-)
+]
 
 
-class LayoutTypes:
+class LayoutTypes(Enum):
     # The values are in lowercase with dashes, because that is what users can
     # use at the command line.
-    EVEN_HORIZONTAL = "even-horizontal"
-    EVEN_VERTICAL = "even-vertical"
-    MAIN_HORIZONTAL = "main-horizontal"
-    MAIN_VERTICAL = "main-vertical"
-    TILED = "tiled"
-
-    _ALL = [EVEN_HORIZONTAL, EVEN_VERTICAL, MAIN_HORIZONTAL, MAIN_VERTICAL, TILED]
+    EVEN_HORIZONTAL = "EVEN-HORIZONTAL"
+    EVEN_VERTICAL = "EVEN-VERTICAL"
+    MAIN_HORIZONTAL = "MAIN-HORIZONTAL"
+    MAIN_VERTICAL = "MAIN-VERTICAL"
+    TILED = "TILED"
 
 
 class Pane:
@@ -50,7 +49,7 @@ class Pane:
 
     def __init__(self, terminal: Terminal) -> None:
         self.terminal = terminal
-        self.chosen_name = None
+        self.chosen_name: Optional[str] = None
 
         # Displayed the clock instead of this pane content.
         self.clock_mode = False
@@ -102,7 +101,7 @@ class Pane:
         get_app().layout.focus(self.terminal)
 
 
-class _WeightsDictionary(weakref.WeakKeyDictionary):
+class _WeightsDictionary(WeakKeyDictionary):
     """
     Dictionary for the weights: weak keys, but defaults to 1.
 
@@ -116,7 +115,7 @@ class _WeightsDictionary(weakref.WeakKeyDictionary):
     def __getitem__(self, key):
         try:
             # (Don't use 'super' here. This is a classobj in Python2.)
-            return weakref.WeakKeyDictionary.__getitem__(self, key)
+            return WeakKeyDictionary.__getitem__(self, key)
         except KeyError:
             return 1
 
@@ -156,13 +155,13 @@ class Window:
 
     _window_counter = 1000  # Start here, to avoid confusion with window index.
 
-    def __init__(self, index=0):
+    def __init__(self, index: int = 0) -> None:
         self.index = index
-        self.root = HSplit()
-        self._active_pane = None
-        self._prev_active_pane = None
-        self.chosen_name = None
-        self.previous_selected_layout = None
+        self.root: Union[VSplit, HSplit] = HSplit()
+        self._active_pane: Optional[Pane] = None
+        self._prev_active_pane: Optional["ref[Pane]"] = None
+        self.chosen_name: Optional[str] = None
+        self.previous_selected_layout: Optional[LayoutTypes] = None
 
         #: When true, the current pane is zoomed in.
         self.zoom = False
@@ -174,7 +173,7 @@ class Window:
         Window._window_counter += 1
         self.window_id = Window._window_counter
 
-    def invalidation_hash(self):
+    def invalidation_hash(self) -> str:
         """
         Return a hash (string) that can be used to determine when the layout
         has to be rebuild.
@@ -182,7 +181,7 @@ class Window:
         #        if not self.root:
         #            return '<empty-window>'
 
-        def _hash_for_split(split):
+        def _hash_for_split(split: Union[HSplit, VSplit]) -> str:
             result = []
             for item in split:
                 if isinstance(item, (VSplit, HSplit)):
@@ -202,23 +201,23 @@ class Window:
         )
 
     @property
-    def active_pane(self):
+    def active_pane(self) -> Optional[Pane]:
         """
         The current active :class:`.Pane`.
         """
         return self._active_pane
 
     @active_pane.setter
-    def active_pane(self, value: Pane):
+    def active_pane(self, value: Pane) -> None:
         # Remember previous active pane.
         if self._active_pane:
-            self._prev_active_pane = weakref.ref(self._active_pane)
+            self._prev_active_pane = ref(self._active_pane)
 
         self.zoom = False
         self._active_pane = value
 
     @property
-    def previous_active_pane(self):
+    def previous_active_pane(self) -> Optional[Pane]:
         """
         The previous active :class:`.Pane` or `None` if unknown.
         """
@@ -228,9 +227,10 @@ class Window:
         # window.
         if p and p in self.panes:
             return p
+        return None
 
     @property
-    def name(self):
+    def name(self) -> str:
         """
         The name for this window as it should be displayed in the status bar.
         """
@@ -302,7 +302,7 @@ class Window:
                 p = p2
 
     @property
-    def panes(self):
+    def panes(self) -> List[Pane]:
         " List with all panes from this Window. "
         result = []
 
@@ -314,7 +314,7 @@ class Window:
         return result
 
     @property
-    def splits(self):
+    def splits(self) -> List[Union[HSplit, VSplit]]:
         " Return a list with all HSplit/VSplit instances. "
         result = []
 
@@ -335,7 +335,7 @@ class Window:
                 return s
 
     @property
-    def has_panes(self):
+    def has_panes(self) -> bool:
         " True when this window contains at least one pane. "
         return len(self.panes) > 0
 
@@ -347,21 +347,26 @@ class Window:
         if p is not None:
             return p.process
 
-    def focus_next(self, count=1):
+    def focus_next(self, count=1) -> None:
         " Focus the next pane. "
         panes = self.panes
         if panes:
             self.active_pane = panes[
-                (panes.index(self.active_pane) + count) % len(panes)
+                (panes.index(self.active_pane or panes[0]) + count) % len(panes)
             ]
         else:
             self.active_pane = None  # No panes left.
 
-    def focus_previous(self):
+    def focus_previous(self) -> None:
         " Focus the previous pane. "
         self.focus_next(count=-1)
 
-    def rotate(self, count=1, with_pane_before_only=False, with_pane_after_only=False):
+    def rotate(
+        self,
+        count: int = 1,
+        with_pane_before_only: bool = False,
+        with_pane_after_only: bool = False,
+    ) -> None:
         """
         Rotate panes.
         When `with_pane_before_only` or `with_pane_after_only` is True, only rotate
@@ -369,7 +374,7 @@ class Window:
         """
         # Create (split, index, pane, weight) tuples.
         items = []
-        current_pane_index = None
+        current_pane_index: Optional[int] = None
 
         for s in self.splits:
             for index, item in enumerate(s):
@@ -379,11 +384,12 @@ class Window:
                         current_pane_index = len(items) - 1
 
         # Only before after? Reduce list of panes.
-        if with_pane_before_only:
-            items = items[current_pane_index - 1 : current_pane_index + 1]
+        if current_pane_index is not None:
+            if with_pane_before_only:
+                items = items[current_pane_index - 1 : current_pane_index + 1]
 
-        elif with_pane_after_only:
-            items = items[current_pane_index : current_pane_index + 2]
+            elif with_pane_after_only:
+                items = items[current_pane_index : current_pane_index + 2]
 
         # Rotate positions.
         for i, triple in enumerate(items):
@@ -394,12 +400,10 @@ class Window:
             split[index] = new_item
             split.weights[new_item] = weight
 
-    def select_layout(self, layout_type):
+    def select_layout(self, layout_type: LayoutTypes) -> None:
         """
         Select one of the predefined layouts.
         """
-        assert layout_type in LayoutTypes._ALL
-
         # When there is only one pane, always choose EVEN_HORIZONTAL,
         # Otherwise, we create VSplit/HSplit instances with an empty list of
         # children.
@@ -453,7 +457,7 @@ class Window:
 
         self.previous_selected_layout = layout_type
 
-    def select_next_layout(self, count=1):
+    def select_next_layout(self, count: int = 1) -> None:
         """
         Select next layout. (Cycle through predefined layouts.)
         """
@@ -462,10 +466,10 @@ class Window:
         if len(self.panes) == 2:
             all_layouts = [LayoutTypes.EVEN_HORIZONTAL, LayoutTypes.EVEN_VERTICAL]
         else:
-            all_layouts = LayoutTypes._ALL
+            all_layouts = list(LayoutTypes)
 
         # Get index of current layout.
-        layout = self.previous_selected_layout or LayoutTypes._ALL[-1]
+        layout = self.previous_selected_layout or list(LayoutTypes)[-1]
         try:
             index = all_layouts.index(layout)
         except ValueError:
@@ -475,15 +479,18 @@ class Window:
         new_layout = all_layouts[(index + count) % len(all_layouts)]
         self.select_layout(new_layout)
 
-    def select_previous_layout(self):
+    def select_previous_layout(self) -> None:
         self.select_next_layout(count=-1)
 
-    def change_size_for_active_pane(self, up=0, right=0, down=0, left=0):
+    def change_size_for_active_pane(
+        self, up: int = 0, right: int = 0, down: int = 0, left: int = 0
+    ) -> None:
         """
         Increase the size of the current pane in any of the four directions.
         """
         child = self.active_pane
-        self.change_size_for_pane(child, up=up, right=right, down=down, left=left)
+        if child is not None:
+            self.change_size_for_pane(child, up=up, right=right, down=down, left=left)
 
     def change_size_for_pane(self, pane: Pane, up=0, right=0, down=0, left=0):
         """
@@ -558,18 +565,18 @@ class Arrangement:
     have different windows active.
     """
 
-    def __init__(self):
-        self.windows = []
+    def __init__(self) -> None:
+        self.windows: List[Window] = []
         self.base_index = 0
 
-        self._active_window_for_cli = weakref.WeakKeyDictionary()
-        self._prev_active_window_for_cli = weakref.WeakKeyDictionary()
+        self._active_window_for_cli: "WeakKeyDictionary[Application, Window]" = WeakKeyDictionary()
+        self._prev_active_window_for_cli: "WeakKeyDictionary[Application, Window]" = WeakKeyDictionary()
 
         # The active window of the last CLI. Used as default when a new session
         # is attached.
-        self._last_active_window = None
+        self._last_active_window: Optional[Window] = None
 
-    def invalidation_hash(self):
+    def invalidation_hash(self) -> str:
         """
         When this changes, the layout needs to be rebuild.
         """
@@ -579,7 +586,7 @@ class Arrangement:
         w = self.get_active_window()
         return w.invalidation_hash()
 
-    def get_active_window(self):
+    def get_active_window(self) -> Window:
         """
         The current active :class:`.Window`.
         """
@@ -593,7 +600,7 @@ class Arrangement:
             )
             return self.windows[0]
 
-    def set_active_window(self, window: Window):
+    def set_active_window(self, window: Window) -> None:
         app = get_app()
 
         previous = self.get_active_window()
@@ -601,7 +608,7 @@ class Arrangement:
         self._active_window_for_cli[app] = window
         self._last_active_window = window
 
-    def set_active_window_from_pane_id(self, pane_id: int):
+    def set_active_window_from_pane_id(self, pane_id: int) -> None:
         """
         Make the window with this pane ID the active Window.
         """
@@ -610,7 +617,7 @@ class Arrangement:
                 if p.pane_id == pane_id:
                     self.set_active_window(w)
 
-    def get_previous_active_window(self):
+    def get_previous_active_window(self) -> Optional[Window]:
         " The previous active Window or None if unknown. "
         app = get_app()
 
@@ -625,7 +632,9 @@ class Arrangement:
             if w.index == index:
                 return w
 
-    def create_window(self, pane: Pane, name: Optional[str] = None, set_active=True):
+    def create_window(
+        self, pane: Pane, name: Optional[str] = None, set_active: bool = True
+    ) -> None:
         """
         Create a new window that contains just this pane.
 
@@ -659,7 +668,7 @@ class Arrangement:
         assert w.active_pane == pane
         assert w._get_parent(pane)
 
-    def move_window(self, window: Window, new_index: int):
+    def move_window(self, window: Window, new_index: int) -> None:
         """
         Move window to a new index.
         """
@@ -668,15 +677,16 @@ class Arrangement:
         # Sort windows by index.
         self.windows = sorted(self.windows, key=lambda w: w.index)
 
-    def get_active_pane(self):
+    def get_active_pane(self) -> Optional[Pane]:
         """
         The current :class:`.Pane` from the current window.
         """
         w = self.get_active_window()
         if w is not None:
             return w.active_pane
+        return None
 
-    def remove_pane(self, pane: Pane):
+    def remove_pane(self, pane: Pane) -> None:
         """
         Remove a :class:`.Pane`. (Look in all windows.)
         """
@@ -693,21 +703,21 @@ class Arrangement:
 
                 self.windows.remove(w)
 
-    def focus_previous_window(self):
+    def focus_previous_window(self) -> None:
         w = self.get_active_window()
 
         self.set_active_window(
             self.windows[(self.windows.index(w) - 1) % len(self.windows)]
         )
 
-    def focus_next_window(self):
+    def focus_next_window(self) -> None:
         w = self.get_active_window()
 
         self.set_active_window(
             self.windows[(self.windows.index(w) + 1) % len(self.windows)]
         )
 
-    def break_pane(self, set_active=True):
+    def break_pane(self, set_active: bool = True) -> None:
         """
         When the current window has multiple panes, remove the pane from this
         window and put it in a new window.
@@ -718,16 +728,17 @@ class Arrangement:
 
         if len(w.panes) > 1:
             pane = w.active_pane
-            self.get_active_window().remove_pane(pane)
-            self.create_window(pane, set_active=set_active)
+            if pane is not None:
+                self.get_active_window().remove_pane(pane)
+                self.create_window(pane, set_active=set_active)
 
-    def rotate_window(self, count=1):
+    def rotate_window(self, count: int = 1) -> None:
         " Rotate the panes in the active window. "
         w = self.get_active_window()
         w.rotate(count=count)
 
     @property
-    def has_panes(self):
+    def has_panes(self) -> bool:
         " True when any of the windows has a :class:`.Pane`. "
         for w in self.windows:
             if w.has_panes:

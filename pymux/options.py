@@ -10,13 +10,13 @@ from .key_mappings import (
 from .layout import Justify
 from .utils import get_default_shell
 
-__all__ = (
+__all__ = [
     "Option",
     "SetOptionError",
     "OnOffOption",
     "ALL_OPTIONS",
     "ALL_WINDOW_OPTIONS",
-)
+]
 
 
 class Option(ABC):

@@ -1,6 +1,6 @@
 import logging
 
-__all__ = ("logger",)
+__all__ = ["logger"]
 
 
 logger = logging.getLogger(__package__)

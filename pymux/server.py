@@ -1,16 +1,31 @@
 import json
-from asyncio import ensure_future
+from asyncio import create_task
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    ContextManager,
+    Dict,
+    List,
+    Optional,
+    TextIO,
+    cast,
+)
 
 from prompt_toolkit.application.current import set_app
 from prompt_toolkit.data_structures import Size
 from prompt_toolkit.input.vt100_parser import Vt100Parser
+from prompt_toolkit.output import ColorDepth
 from prompt_toolkit.output.vt100 import Vt100_Output
 from prompt_toolkit.utils import is_windows
 
 from .log import logger
 from .pipes import BrokenPipeError
 
-__all__ = ("ServerConnection",)
+if TYPE_CHECKING:
+    from pymux.main import Pymux, ClientState
+
+__all__ = ["ServerConnection"]
 
 
 class ServerConnection:
@@ -18,7 +33,7 @@ class ServerConnection:
     For each client that connects, we have one instance of this class.
     """
 
-    def __init__(self, pymux, pipe_connection):
+    def __init__(self, pymux: "Pymux", pipe_connection) -> None:
         self.pymux = pymux
 
         self.pipe_connection = pipe_connection
@@ -27,18 +42,19 @@ class ServerConnection:
         self._closed = False
 
         self._recv_buffer = b""
-        self.client_state = None
+        self.client_state: Optional["ClientState"] = None
 
-        def feed_key(key):
-            self.client_state.app.key_processor.feed(key)
-            self.client_state.app.key_processor.process_keys()
+        def feed_key(key) -> None:
+            if self.client_state is not None:
+                self.client_state.app.key_processor.feed(key)
+                self.client_state.app.key_processor.process_keys()
 
         self._inputstream = Vt100Parser(feed_key)
         self._pipeinput = _ClientInput(self._send_packet)
 
-        ensure_future(self._start_reading())
+        create_task(self._start_reading())
 
-    async def _start_reading(self):
+    async def _start_reading(self) -> None:
         while True:
             try:
                 data = await self.pipe_connection.read()
@@ -54,7 +70,7 @@ class ServerConnection:
                 print("got exception ", repr(e))
                 break
 
-    def _process(self, data):
+    def _process(self, data: str) -> None:
         """
         Process packet received from client.
         """
@@ -79,14 +95,14 @@ class ServerConnection:
 
         # Set size. (The client reports the size.)
         elif packet["cmd"] == "size":
-            data = packet["data"]
-            self.size = Size(rows=data[0], columns=data[1])
+            rows, columns = packet["data"]
+            self.size = Size(rows=rows, columns=columns)
             self.pymux.invalidate()
 
         # Start GUI. (Create CommandLineInterface front-end for pymux.)
         elif packet["cmd"] == "start-gui":
             detach_other_clients = bool(packet["detach-others"])
-            color_depth = packet["color-depth"]
+            color_depth = ColorDepth(packet["color-depth"])
             term = packet["term"]
 
             if detach_other_clients:
@@ -96,7 +112,7 @@ class ServerConnection:
             print("Create app...")
             self._create_app(color_depth=color_depth, term=term)
 
-    def _send_packet(self, data):
+    def _send_packet(self, data: object) -> None:
         """
         Send packet to client.
         """
@@ -105,19 +121,19 @@ class ServerConnection:
 
         data = json.dumps(data)
 
-        async def send():
+        async def send() -> None:
             try:
                 await self.pipe_connection.write(data)
             except BrokenPipeError:
                 self.detach_and_close()
 
-        ensure_future(send())
+        create_task(send())
 
-    def _run_command(self, packet):
+    def _run_command(self, packet: Dict[str, Any]) -> None:
         """
         Execute a run command from the client.
         """
-        create_temp_cli = self.client_states is None
+        create_temp_cli = self.client_state is None
 
         if create_temp_cli:
             # If this client doesn't have a CLI. Create a Fake CLI where the
@@ -135,13 +151,15 @@ class ServerConnection:
             finally:
                 self._close_connection()
 
-    def _create_app(self, color_depth, term="xterm"):
+    def _create_app(
+        self, color_depth: ColorDepth = ColorDepth.DEPTH_8_BIT, term: str = "xterm"
+    ) -> None:
         """
         Create CommandLineInterface for this client.
         Called when the client wants to attach the UI to the server.
         """
         output = Vt100_Output(
-            _SocketStdout(self._send_packet),
+            cast(TextIO, _SocketStdout(self._send_packet)),
             lambda: self.size,
             term=term,
             write_binary=False,
@@ -154,17 +172,13 @@ class ServerConnection:
             color_depth=color_depth,
         )
 
-        async def run():
-            print("Start running app...")
-            future = await self.client_state.app.run_async()
-
-            print("APP DONE.........")
-            print(future.result())
+        async def run() -> None:
+            await self.client_state.app.run_async()
             self._close_connection()
 
-        ensure_future(run())
+        create_task(run())
 
-    def _close_connection(self):
+    def _close_connection(self) -> None:
         # This is important. If we would forget this, the server will
         # render CLI output for clients that aren't connected anymore.
         self.pymux.remove_client(self)
@@ -174,13 +188,13 @@ class ServerConnection:
         # Remove from eventloop.
         self.pipe_connection.close()
 
-    def suspend_client_to_background(self):
+    def suspend_client_to_background(self) -> None:
         """
         Ask the client to suspend itself. (Like, when Ctrl-Z is pressed.)
         """
         self._send_packet({"cmd": "suspend"})
 
-    def detach_and_close(self):
+    def detach_and_close(self) -> None:
         # Remove from Pymux.
         self._close_connection()
 
@@ -191,15 +205,15 @@ class _SocketStdout:
     client.
     """
 
-    def __init__(self, send_packet):
-        assert callable(send_packet)
+    def __init__(self, send_packet: Callable) -> None:
         self.send_packet = send_packet
-        self._buffer = []
+        self._buffer: List[str] = []
 
-    def write(self, data):
+    def write(self, data: str) -> int:
         self._buffer.append(data)
+        return len(data)
 
-    def flush(self):
+    def flush(self) -> None:
         data = {"cmd": "out", "data": "".join(self._buffer)}
         self.send_packet(data)
         self._buffer = []
@@ -217,27 +231,26 @@ class _ClientInput(PipeInput):
     We only need this for turning the client into raw_mode/cooked_mode.
     """
 
-    def __init__(self, send_packet):
-        super(_ClientInput, self).__init__()
-        assert callable(send_packet)
+    def __init__(self, send_packet: Callable) -> None:
+        super().__init__()
         self.send_packet = send_packet
 
     # Implement raw/cooked mode by sending this to the attached client.
 
-    def raw_mode(self):
+    def raw_mode(self) -> ContextManager[None]:
         return self._create_context_manager("raw")
 
-    def cooked_mode(self):
+    def cooked_mode(self) -> ContextManager[None]:
         return self._create_context_manager("cooked")
 
-    def _create_context_manager(self, mode):
+    def _create_context_manager(self, mode: str) -> ContextManager[None]:
         " Create a context manager that sends 'mode' commands to the client. "
 
         class mode_context_manager:
-            def __enter__(*a):
+            def __enter__(*a: object) -> None:
                 self.send_packet({"cmd": "mode", "data": mode})
 
-            def __exit__(*a):
+            def __exit__(*a: object) -> None:
                 self.send_packet({"cmd": "mode", "data": "restore"})
 
         return mode_context_manager()

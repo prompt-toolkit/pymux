@@ -1,7 +1,7 @@
-__all__ = (
+__all__ = [
     "COMMAND",
     "PROMPT",
-)
+]
 
 
 #: Name of the command buffer.

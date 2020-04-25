@@ -5,11 +5,12 @@ The layout engine. This builds the prompt_toolkit layout.
 import datetime
 import weakref
 from functools import partial
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import pymux.arrangement as arrangement
-from prompt_toolkit.application.current import get_app
+from prompt_toolkit.application import Application, get_app
 from prompt_toolkit.filters import Condition, has_focus
-from prompt_toolkit.formatted_text import HTML, FormattedText
+from prompt_toolkit.formatted_text import HTML, FormattedText, StyleAndTextTuples
 from prompt_toolkit.layout.containers import (
     ConditionalContainer,
     Container,
@@ -19,29 +20,33 @@ from prompt_toolkit.layout.containers import (
     VSplit,
     Window,
     WindowAlign,
+    WritePosition,
     to_container,
 )
 from prompt_toolkit.layout.controls import BufferControl, FormattedTextControl
 from prompt_toolkit.layout.dimension import Dimension as D
 from prompt_toolkit.layout.dimension import is_dimension, to_dimension
 from prompt_toolkit.layout.menus import CompletionsMenu
+from prompt_toolkit.layout.mouse_handlers import MouseHandlers
 from prompt_toolkit.layout.processors import (
     AppendAutoSuggestion,
     BeforeInput,
     HighlightSelectionProcessor,
-    Processor,
     ShowArg,
-    Transformation,
 )
-from prompt_toolkit.layout.screen import Char
-from prompt_toolkit.mouse_events import MouseEventType
+from prompt_toolkit.layout.screen import Char, Screen
+from prompt_toolkit.mouse_events import MouseEvent, MouseEventType
 from prompt_toolkit.widgets import Dialog, FormattedTextToolbar, SearchToolbar, TextArea
 
 from .filters import WaitsForConfirmation
 from .format import format_pymux_string
 from .log import logger
 
-__all__ = ("LayoutManager",)
+if TYPE_CHECKING:
+    from pymux.main import Pymux
+    from prompt_toolkit.layout.controls import BufferControl, NotImplementedOrNone
+
+__all__ = ["LayoutManager"]
 
 
 class Justify:
@@ -71,18 +76,24 @@ class Background(Container):
     Window, because it can be done very effecient this way.)
     """
 
-    def reset(self):
+    def reset(self) -> None:
         pass
 
-    def preferred_width(self, max_available_width):
+    def preferred_width(self, max_available_width: int) -> D:
         return D()
 
-    def preferred_height(self, width, max_available_height):
+    def preferred_height(self, width: int, max_available_height: int) -> D:
         return D()
 
     def write_to_screen(
-        self, screen, mouse_handlers, write_position, parent_style, erase_bg, z_index
-    ):
+        self,
+        screen: Screen,
+        mouse_handlers: MouseHandlers,
+        write_position: WritePosition,
+        parent_style: str,
+        erase_bg: bool,
+        z_index: Optional[int],
+    ) -> None:
         " Fill the whole area of write_position with dots. "
         default_char = Char(" ", "class:background")
         dot = Char(".", "class:background")
@@ -96,7 +107,7 @@ class Background(Container):
             for x in range(xpos, xpos + write_position.width):
                 row[x] = dot if (x + y) % 3 == 0 else default_char
 
-    def get_children(self):
+    def get_children(self) -> List[Container]:
         return []
 
 
@@ -193,16 +204,21 @@ class BigClock(Container):
     WIDTH = 28
     HEIGHT = 5
 
-    def __init__(self, on_click):
-        assert callable(on_click)
+    def __init__(self, on_click: Callable):
         self.on_click = on_click
 
     def reset(self):
         pass
 
     def write_to_screen(
-        self, screen, mouse_handlers, write_position, parent_style, erase_bg, z_index
-    ):
+        self,
+        screen: Screen,
+        mouse_handlers: MouseHandlers,
+        write_position: WritePosition,
+        parent_style: str,
+        erase_bg: bool,
+        z_index: Optional[int],
+    ) -> None:
         xpos = write_position.xpos
         ypos = write_position.ypos
 
@@ -246,13 +262,13 @@ class BigClock(Container):
         else:
             return NotImplemented
 
-    def preferred_width(self, max_available_width):
+    def preferred_width(self, max_available_width: int) -> D:
         return D.exact(BigClock.WIDTH)
 
-    def preferred_height(self, width, max_available_height):
+    def preferred_height(self, width: int, max_available_height: int) -> D:
         return D.exact(BigClock.HEIGHT)
 
-    def get_children(self):
+    def get_children(self) -> List[Container]:
         return []
 
 
@@ -264,11 +280,11 @@ class PaneNumber(Container):  # XXX: make FormattedTextControl
     WIDTH = 5
     HEIGHT = 5
 
-    def __init__(self, pymux, arrangement_pane):
+    def __init__(self, pymux: "Pymux", arrangement_pane: arrangement.Pane) -> None:
         self.pymux = pymux
         self.arrangement_pane = arrangement_pane
 
-    def reset(self):
+    def reset(self) -> None:
         pass
 
     def _get_index(self):
@@ -278,16 +294,22 @@ class PaneNumber(Container):  # XXX: make FormattedTextControl
         except ValueError:
             return 0
 
-    def preferred_width(self, max_available_width):
+    def preferred_width(self, max_available_width: int) -> D:
         # Enough to display all the digits.
-        return Dimension.exact(6 * len("%s" % self._get_index()) - 1)
+        return D.exact(6 * len("%s" % self._get_index()) - 1)
 
-    def preferred_height(self, width, max_available_height):
-        return Dimension.exact(self.HEIGHT)
+    def preferred_height(self, width: int, max_available_height: int) -> D:
+        return D.exact(self.HEIGHT)
 
     def write_to_screen(
-        self, screen, mouse_handlers, write_position, parent_style, erase_bg, z_index
-    ):
+        self,
+        screen: Screen,
+        mouse_handlers: MouseHandlers,
+        write_position: WritePosition,
+        parent_style: str,
+        erase_bg: bool,
+        z_index: Optional[int],
+    ) -> None:
         style = "class:panenumber"
 
         def draw_func():
@@ -303,7 +325,7 @@ class PaneNumber(Container):  # XXX: make FormattedTextControl
 
         screen.draw_with_z_index(z_index=z_index, draw_func=draw_func)
 
-    def get_children(self):
+    def get_children(self) -> List[Container]:
         return []
 
 
@@ -334,10 +356,10 @@ class MessageToolbar(FormattedTextToolbar):
                 return ""
 
         @Condition
-        def is_visible():
+        def is_visible() -> bool:
             return bool(get_message())
 
-        super(MessageToolbar, self).__init__(get_tokens)
+        super().__init__(get_tokens)
 
 
 class LayoutManager:
@@ -345,7 +367,7 @@ class LayoutManager:
     The main layout class, that contains the whole Pymux layout.
     """
 
-    def __init__(self, pymux, client_state):
+    def __init__(self, pymux: "Pymux", client_state) -> None:
         self.pymux = pymux
         self.client_state = client_state
 
@@ -377,9 +399,9 @@ class LayoutManager:
         self.layout = self._create_layout()
 
         # Keep track of render information.
-        self.pane_write_positions = {}
+        self.pane_write_positions: Dict[arrangement.Pane, WritePosition] = {}
 
-    def reset_write_positions(self):
+    def reset_write_positions(self) -> None:
         """
         Clear write positions right before rendering. (They are populated
         during rendering).
@@ -395,21 +417,24 @@ class LayoutManager:
         self.client_state.display_popup = True
         get_app().layout.focus(self._popup_textarea)
 
-    def _create_select_window_handler(self, window):
+    def _create_select_window_handler(
+        self, window: arrangement.Window
+    ) -> Callable[[MouseEvent], "NotImplementedOrNone"]:
         " Return a mouse handler that selects the given window when clicking. "
 
-        def handler(mouse_event):
+        def handler(mouse_event: MouseEvent) -> "NotImplementedOrNone":
             if mouse_event.event_type == MouseEventType.MOUSE_DOWN:
                 self.pymux.arrangement.set_active_window(window)
                 self.pymux.invalidate()
+                return None
             else:
                 return NotImplemented  # Event not handled here.
 
         return handler
 
-    def _get_status_tokens(self):
+    def _get_status_tokens(self) -> StyleAndTextTuples:
         " The tokens for the status bar. "
-        result = []
+        result: StyleAndTextTuples = []
 
         # Display panes.
         for i, w in enumerate(self.pymux.arrangement.windows):
@@ -434,13 +459,13 @@ class LayoutManager:
 
         return result
 
-    def _get_status_left_tokens(self):
+    def _get_status_left_tokens(self) -> str:
         return format_pymux_string(self.pymux, self.pymux.status_left)
 
-    def _get_status_right_tokens(self):
+    def _get_status_right_tokens(self) -> str:
         return format_pymux_string(self.pymux, self.pymux.status_right)
 
-    def _get_align(self):
+    def _get_align(self) -> WindowAlign:
         if self.pymux.status_justify == Justify.RIGHT:
             return WindowAlign.RIGHT
         elif self.pymux.status_justify == Justify.CENTER:
@@ -448,10 +473,10 @@ class LayoutManager:
         else:
             return WindowAlign.LEFT
 
-    def _before_prompt_command_tokens(self):
+    def _before_prompt_command_tokens(self) -> StyleAndTextTuples:
         return [("class:commandline.prompt", "%s " % (self.client_state.prompt_text,))]
 
-    def _create_layout(self):
+    def _create_layout(self) -> Container:
         """
         Generate the main prompt_toolkit layout.
         """
@@ -623,9 +648,7 @@ class ConfirmationToolbar(FormattedTextControl):
                 ("class:yesno", "  "),
             ]
 
-        super(ConfirmationToolbar, self).__init__(
-            get_tokens, style="class:confirmationtoolbar"
-        )
+        super().__init__(get_tokens, style="class:confirmationtoolbar")
 
 
 class DynamicBody(Container):
@@ -638,13 +661,15 @@ class DynamicBody(Container):
     arrangement changes, without doing any synchronisation.
     """
 
-    def __init__(self, pymux):
+    def __init__(self, pymux: "Pymux") -> None:
         self.pymux = pymux
-        self._bodies_for_app = (
+        self._bodies_for_app: weakref.WeakKeyDictionary[
+            Application, Tuple[str, Container]
+        ] = (
             weakref.WeakKeyDictionary()
         )  # Maps Application to (hash, Container)
 
-    def _get_body(self):
+    def _get_body(self) -> Container:
         " Return the Container object for the current CLI. "
         new_hash = self.pymux.arrangement.invalidation_hash()
 
@@ -661,7 +686,7 @@ class DynamicBody(Container):
         self._bodies_for_app[app] = (new_hash, new_layout)
         return new_layout
 
-    def _build_layout(self):
+    def _build_layout(self) -> Container:
         " Rebuild a new Container object and return that. "
         logger.info("Rebuilding layout.")
 
@@ -692,27 +717,33 @@ class DynamicBody(Container):
                 ]
             )
 
-    def reset(self):
+    def reset(self) -> None:
         for invalidation_hash, body in self._bodies_for_app.values():
             body.reset()
 
-    def preferred_width(self, max_available_width):
+    def preferred_width(self, max_available_width: int) -> D:
         body = self._get_body()
         return body.preferred_width(max_available_width)
 
-    def preferred_height(self, width, max_available_height):
+    def preferred_height(self, width: int, max_available_height: int) -> D:
         body = self._get_body()
         return body.preferred_height(width, max_available_height)
 
     def write_to_screen(
-        self, screen, mouse_handlers, write_position, parent_style, erase_bg, z_index
-    ):
+        self,
+        screen: Screen,
+        mouse_handlers: MouseHandlers,
+        write_position: WritePosition,
+        parent_style: str,
+        erase_bg: bool,
+        z_index: Optional[int],
+    ) -> None:
         body = self._get_body()
         body.write_to_screen(
             screen, mouse_handlers, write_position, parent_style, erase_bg, z_index
         )
 
-    def get_children(self):
+    def get_children(self) -> List[Container]:
         # (Required for prompt_toolkit.layout.utils.find_window_for_buffer_name.)
         body = self._get_body()
         return [body]
@@ -729,31 +760,38 @@ class SizedBox(Container):
     """
 
     def __init__(
-        self, content, width=None, height=None, report_write_position_callback=None
+        self,
+        content,
+        width=None,
+        height=None,
+        report_write_position_callback: Optional[Callable] = None,
     ):
         assert is_dimension(width)
         assert is_dimension(height)
-        assert report_write_position_callback is None or callable(
-            report_write_position_callback
-        )
 
         self.content = to_container(content)
         self.width = width
         self.height = height
         self.report_write_position_callback = report_write_position_callback
 
-    def reset(self):
+    def reset(self) -> None:
         self.content.reset()
 
-    def preferred_width(self, max_available_width):
+    def preferred_width(self, max_available_width: int) -> D:
         return to_dimension(self.width)
 
-    def preferred_height(self, width, max_available_height):
+    def preferred_height(self, width: int, max_available_height: int) -> D:
         return to_dimension(self.height)
 
     def write_to_screen(
-        self, screen, mouse_handlers, write_position, parent_style, erase_bg, z_index
-    ):
+        self,
+        screen: Screen,
+        mouse_handlers: MouseHandlers,
+        write_position: WritePosition,
+        parent_style: str,
+        erase_bg: bool,
+        z_index: Optional[int],
+    ) -> None:
         # Report dimensions.
         if self.report_write_position_callback:
             self.report_write_position_callback(write_position)
@@ -762,18 +800,19 @@ class SizedBox(Container):
             screen, mouse_handlers, write_position, parent_style, erase_bg, z_index
         )
 
-    def get_children(self):
+    def get_children(self) -> List[Container]:
         return [self.content]
 
 
-def _create_split(pymux, window, split):
+def _create_split(
+    pymux: "Pymux", window, split: Union[arrangement.HSplit, arrangement.VSplit]
+) -> Container:
     """
     Create a prompt_toolkit `Container` instance for the given pymux split.
     """
-    assert isinstance(split, (arrangement.HSplit, arrangement.VSplit))
     is_vsplit = isinstance(split, arrangement.VSplit)
 
-    def get_average_weight():
+    def get_average_weight() -> int:
         """ Calculate average weight of the children. Return 1 if none of
         the children has a weight specified yet. """
         weights = 0
@@ -839,6 +878,8 @@ def _create_split(pymux, window, split):
         )
 
     # Create prompt_toolkit Container.
+    return_cls: Union[Type[HSplit], Type[VSplit]]
+
     if is_vsplit:
         return_cls = VSplit
         padding_char = _border_vertical
@@ -849,22 +890,27 @@ def _create_split(pymux, window, split):
     return return_cls(content, padding=1, padding_char=padding_char)
 
 
-def _create_container_for_process(pymux, window, arrangement_pane, zoom=False):
+def _create_container_for_process(
+    pymux: "Pymux",
+    window: arrangement.Window,
+    arrangement_pane: arrangement.Pane,
+    zoom: bool = False,
+):
     """
     Create a `Container` with a titlebar for a process.
     """
 
     @Condition
-    def clock_is_visible():
+    def clock_is_visible() -> bool:
         return arrangement_pane.clock_mode
 
     @Condition
-    def pane_numbers_are_visible():
+    def pane_numbers_are_visible() -> bool:
         return pymux.display_pane_numbers
 
     terminal_is_focused = has_focus(arrangement_pane.terminal)
 
-    def get_terminal_style():
+    def get_terminal_style() -> str:
         if terminal_is_focused():
             result = "class:terminal.focused"
         else:
@@ -984,26 +1030,32 @@ def _create_container_for_process(pymux, window, arrangement_pane, zoom=False):
 
 
 class _ContainerProxy(Container):
-    def __init__(self, content):
+    def __init__(self, content: Container) -> None:
         self.content = content
 
-    def reset(self):
+    def reset(self) -> None:
         self.content.reset()
 
-    def preferred_width(self, max_available_width):
+    def preferred_width(self, max_available_width: int) -> D:
         return self.content.preferred_width(max_available_width)
 
-    def preferred_height(self, width, max_available_height):
+    def preferred_height(self, width: int, max_available_height: int) -> D:
         return self.content.preferred_height(width, max_available_height)
 
     def write_to_screen(
-        self, screen, mouse_handlers, write_position, parent_style, erase_bg, z_index
-    ):
+        self,
+        screen: Screen,
+        mouse_handlers: MouseHandlers,
+        write_position: WritePosition,
+        parent_style: str,
+        erase_bg: bool,
+        z_index: Optional[int],
+    ) -> None:
         self.content.write_to_screen(
             screen, mouse_handlers, write_position, parent_style, erase_bg, z_index
         )
 
-    def get_children(self):
+    def get_children(self) -> List[Container]:
         return [self.content]
 
 
@@ -1030,7 +1082,7 @@ class HighlightBordersIfActive:
 
     def __init__(self, window, pane, style, content):
         @Condition
-        def is_selected():
+        def is_selected() -> bool:
             return window.active_pane == pane
 
         def conditional_float(
@@ -1052,46 +1104,46 @@ class HighlightBordersIfActive:
         self.container = FloatContainer(
             content,
             style=style,
-            floats=[],
-            # XXX: fix this!
-            # floats=[
-            #     # Sides.
-            #     conditional_float(
-            #         _focused_border_vertical, left=-1, top=0, bottom=0, width=1
-            #     ),
-            #     conditional_float(
-            #         _focused_border_vertical, right=-1, top=0, bottom=0, width=1
-            #     ),
-            #     conditional_float(
-            #         _focused_border_horizontal, left=0, right=0, top=-1, height=1
-            #     ),
-            #     conditional_float(
-            #         _focused_border_horizontal, left=0, right=0, bottom=-1, height=1
-            #     ),
-            #     # Corners.
-            #     conditional_float(
-            #         _focused_border_left_top, left=-1, top=-1, width=1, height=1
-            #     ),
-            #     conditional_float(
-            #         _focused_border_right_top, right=-1, top=-1, width=1, height=1
-            #     ),
-            #     conditional_float(
-            #         _focused_border_left_bottom, left=-1, bottom=-1, width=1, height=1
-            #     ),
-            #     conditional_float(
-            #         _focused_border_right_bottom, right=-1, bottom=-1, width=1, height=1
-            #     ),
-            # ],
+            floats=[
+                # Sides.
+                conditional_float(
+                    _focused_border_vertical, left=-1, top=0, bottom=0, width=1
+                ),
+                conditional_float(
+                    _focused_border_vertical, right=-1, top=0, bottom=0, width=1
+                ),
+                # conditional_float(
+                #    _focused_border_horizontal, left=0, right=0, top=-1, height=1
+                # ),
+                # conditional_float(
+                #    _focused_border_horizontal, left=0, right=0, bottom=-1, height=1
+                # ),
+                # Corners.
+                conditional_float(
+                    _focused_border_left_top, left=-1, top=-1, width=1, height=1
+                ),
+                conditional_float(
+                    _focused_border_right_top, right=-1, top=-1, width=1, height=1
+                ),
+                # conditional_float(
+                #    _focused_border_left_bottom, left=-1, bottom=-1, width=1, height=1
+                # ),
+                # conditional_float(
+                #    _focused_border_right_bottom, right=-1, bottom=-1, width=1, height=1
+                # ),
+            ],
         )
 
-    def __pt_container__(self):
+    def __pt_container__(self) -> Container:
         return self.container
 
 
 class TracePaneWritePosition(_ContainerProxy):  # XXX: replace with SizedBox
     " Trace the write position of this pane. "
 
-    def __init__(self, pymux, arrangement_pane, content):
+    def __init__(
+        self, pymux: "Pymux", arrangement_pane: arrangement.Pane, content
+    ) -> None:
         content = to_container(content)
         _ContainerProxy.__init__(self, content)
 
@@ -1099,8 +1151,14 @@ class TracePaneWritePosition(_ContainerProxy):  # XXX: replace with SizedBox
         self.arrangement_pane = arrangement_pane
 
     def write_to_screen(
-        self, screen, mouse_handlers, write_position, parent_style, erase_bg, z_inedx
-    ):
+        self,
+        screen: Screen,
+        mouse_handlers: MouseHandlers,
+        write_position: WritePosition,
+        parent_style: str,
+        erase_bg: bool,
+        z_index: Optional[int],
+    ) -> None:
         _ContainerProxy.write_to_screen(
             self,
             screen,
@@ -1108,14 +1166,14 @@ class TracePaneWritePosition(_ContainerProxy):  # XXX: replace with SizedBox
             write_position,
             parent_style,
             erase_bg,
-            z_inedx,
+            z_index,
         )
         self.pymux.get_client_state().layout_manager.pane_write_positions[
             self.arrangement_pane
         ] = write_position
 
 
-def focus_left(pymux):
+def focus_left(pymux: "Pymux") -> None:
     " Move focus to the left. "
     _move_focus(
         pymux,
@@ -1124,24 +1182,24 @@ def focus_left(pymux):
     )
 
 
-def focus_right(pymux):
+def focus_right(pymux: "Pymux") -> None:
     " Move focus to the right. "
     _move_focus(pymux, lambda wp: wp.xpos + wp.width + 1, lambda wp: wp.ypos)
 
 
-def focus_down(pymux):
+def focus_down(pymux: "Pymux") -> None:
     " Move focus down. "
     _move_focus(pymux, lambda wp: wp.xpos, lambda wp: wp.ypos + wp.height + 2)
     # 2 in order to skip over the border. Only required when the
     # pane-status is not shown, but a border instead.
 
 
-def focus_up(pymux):
+def focus_up(pymux: "Pymux") -> None:
     " Move focus up. "
     _move_focus(pymux, lambda wp: wp.xpos, lambda wp: wp.ypos - 2)
 
 
-def _move_focus(pymux, get_x, get_y):
+def _move_focus(pymux: "Pymux", get_x, get_y) -> None:
     " Move focus of the active window. "
     window = pymux.arrangement.get_active_window()
 

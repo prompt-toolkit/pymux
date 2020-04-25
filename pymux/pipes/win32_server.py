@@ -129,14 +129,14 @@ class PipeInstance:
         if not self.pipe_handle:
             raise Exception("invalid pipe")
 
-    def handle_pipe(self):
+    async def handle_pipe(self):
         """
         Coroutine that handles this pipe.
         """
         while True:
-            yield From(self._handle_client())
+            await self._handle_client()
 
-    def _handle_client(self):
+    async def _handle_client(self):
         """
         Coroutine that connects to a single client and handles that.
         """
@@ -144,13 +144,13 @@ class PipeInstance:
             try:
                 # Wait for connection.
                 logger.info("Waiting for connection in pipe instance.")
-                yield From(self._connect_client())
+                await self._connect_client()
                 logger.info("Connected in pipe instance")
 
                 conn = Win32PipeConnection(self)
                 self.pipe_connection_cb(conn)
 
-                yield From(conn.done_f)
+                await conn.done_f
                 logger.info("Pipe instance done.")
 
             finally:
@@ -158,7 +158,7 @@ class PipeInstance:
                 logger.info("Disconnecting pipe instance.")
                 windll.kernel32.DisconnectNamedPipe(self.pipe_handle)
 
-    def _connect_client(self):
+    async def _connect_client(self):
         """
         Wait for a client to connect to this pipe.
         """
@@ -175,7 +175,7 @@ class PipeInstance:
 
             last_error = windll.kernel32.GetLastError()
             if last_error == ERROR_IO_PENDING:
-                yield From(wait_for_event(overlapped.hEvent))
+                await wait_for_event(overlapped.hEvent)
 
                 # XXX: Call GetOverlappedResult.
                 return  # Connection succeeded.
