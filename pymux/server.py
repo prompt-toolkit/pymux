@@ -165,15 +165,16 @@ class ServerConnection:
             write_binary=False,
         )
 
-        self.client_state = self.pymux.add_client(
+        client_state = self.pymux.add_client(
             input=self._pipeinput,
             output=output,
             connection=self,
             color_depth=color_depth,
         )
+        self.client_state = client_state
 
         async def run() -> None:
-            await self.client_state.app.run_async()
+            await client_state.app.run_async()
             self._close_connection()
 
         create_task(run())

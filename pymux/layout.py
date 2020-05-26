@@ -179,6 +179,9 @@ _numbers = list(
     )
 )
 
+CLOCK_Z_INDEX = 100
+PANE_NUMBER_Z_INDEX = 100
+
 
 def _draw_number(
     screen, x_offset, y_offset, number, style="class:clock", transparent=False
@@ -204,7 +207,7 @@ class BigClock(Container):
     WIDTH = 28
     HEIGHT = 5
 
-    def __init__(self, on_click: Callable):
+    def __init__(self, on_click: Callable[[], None]):
         self.on_click = on_click
 
     def reset(self):
@@ -225,7 +228,7 @@ class BigClock(Container):
         # Erase background.
         bg = Char(" ", "")
 
-        def draw_func():
+        def draw_func() -> None:
             for y in range(ypos, self.HEIGHT + ypos):
                 row = screen.data_buffer[y]
                 for x in range(xpos, xpos + self.WIDTH):
@@ -253,14 +256,12 @@ class BigClock(Container):
                 handler=self._mouse_handler,
             )
 
-        screen.draw_with_z_index(z_index=z_index, draw_func=draw_func)
+        screen.draw_with_z_index(z_index=CLOCK_Z_INDEX, draw_func=draw_func)
 
-    def _mouse_handler(self, cli, mouse_event):
+    def _mouse_handler(self, mouse_event: MouseEvent) -> None:
         " Click callback. "
         if mouse_event.event_type == MouseEventType.MOUSE_UP:
-            self.on_click(cli)
-        else:
-            return NotImplemented
+            self.on_click()
 
     def preferred_width(self, max_available_width: int) -> D:
         return D.exact(BigClock.WIDTH)
@@ -323,7 +324,7 @@ class PaneNumber(Container):  # XXX: make FormattedTextControl
                     transparent=True,
                 )
 
-        screen.draw_with_z_index(z_index=z_index, draw_func=draw_func)
+        screen.draw_with_z_index(z_index=PANE_NUMBER_Z_INDEX, draw_func=draw_func)
 
     def get_children(self) -> List[Container]:
         return []
@@ -843,7 +844,7 @@ def _create_split(
         else:
             split.weights[item] = write_position.height
 
-    def get_size(item):
+    def get_size(item) -> D:
         return D(weight=split.weights.get(item) or average_weight)
 
     content = []
@@ -917,8 +918,8 @@ def _create_container_for_process(
             result = "class:terminal"
         return result
 
-    def get_titlebar_text_fragments():
-        result = []
+    def get_titlebar_text_fragments() -> StyleAndTextTuples:
+        result: StyleAndTextTuples = []
 
         if zoom:
             result.append(("class:titlebar-zoom", " Z "))
@@ -953,7 +954,7 @@ def _create_container_for_process(
             )  # XXX: Make configurable.
         ]
 
-    def get_pane_index():
+    def get_pane_index() -> str:
         try:
             w = pymux.arrangement.get_active_window()
             index = w.get_pane_index(arrangement_pane)
@@ -962,7 +963,7 @@ def _create_container_for_process(
 
         return "%3s " % index
 
-    def on_click():
+    def on_click() -> None:
         " Click handler for the clock. When clicked, select this pane. "
         arrangement_pane.clock_mode = False
         pymux.arrangement.get_active_window().active_pane = arrangement_pane
