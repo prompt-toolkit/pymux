@@ -33,7 +33,7 @@ class Option(ABC):
 
     @abstractmethod
     def set_value(self, pymux, value):
-        " Set option. This can raise SetOptionError. "
+        "Set option. This can raise SetOptionError."
 
 
 class SetOptionError(Exception):
@@ -130,7 +130,7 @@ class KeyPrefixOption(Option):
 
 
 class BaseIndexOption(Option):
-    " Base index for window numbering. "
+    "Base index for window numbering."
 
     def get_all_values(self, pymux):
         return ["0", "1"]
@@ -145,7 +145,7 @@ class BaseIndexOption(Option):
 
 
 class KeysOption(Option):
-    " Emacs or Vi mode. "
+    "Emacs or Vi mode."
 
     def __init__(self, attribute_name):
         self.attribute_name = attribute_name

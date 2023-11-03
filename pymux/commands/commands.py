@@ -57,7 +57,7 @@ def get_documentation_for_command(command: str) -> Optional[str]:
 
 
 def get_option_flags_for_command(command: str) -> List[str]:
-    " Return a list of options (-x flags) for this command. "
+    "Return a list of options (-x flags) for this command."
     return COMMANDS_TO_OPTION_FLAGS.get(command, [])
 
 
@@ -113,7 +113,14 @@ def cmd(name: str, options: str = "") -> Callable[[_F], _F]:
     # Validate options.
     if options:
         try:
-            docopt.docopt("Usage:\n    %s %s" % (name, options,), [])
+            docopt.docopt(
+                "Usage:\n    %s %s"
+                % (
+                    name,
+                    options,
+                ),
+                [],
+            )
         except SystemExit:
             pass
 
@@ -155,7 +162,7 @@ def cmd(name: str, options: str = "") -> Callable[[_F], _F]:
 
 
 class CommandException(Exception):
-    " When raised from a command handler, this message will be shown. "
+    "When raised from a command handler, this message will be shown."
 
     def __init__(self, message: str) -> None:
         self.message = message
@@ -176,7 +183,6 @@ def break_pane(pymux: "Pymux", variables: _VariablesDict) -> None:
 
 @cmd("select-pane", options="(-L|-R|-U|-D|-t <pane-id>)")
 def select_pane(pymux: "Pymux", variables: _VariablesDict) -> None:
-
     if variables["-t"]:
         pane_id = variables["<pane-id>"]
         w = pymux.arrangement.get_active_window()
@@ -272,7 +278,7 @@ def kill_pane(pymux: "Pymux", variables: _VariablesDict) -> None:
 
 @cmd("kill-window")
 def kill_window(pymux: "Pymux", variables: _VariablesDict) -> None:
-    " Kill all panes in the current window. "
+    "Kill all panes in the current window."
     for pane in pymux.arrangement.get_active_window().panes:
         pymux.kill_pane(pane)
 
@@ -303,7 +309,7 @@ def last_pane(pymux: "Pymux", variables: _VariablesDict) -> None:
 
 @cmd("next-layout")
 def next_layout(pymux: "Pymux", variables: _VariablesDict) -> None:
-    " Select next layout. "
+    "Select next layout."
     pane = pymux.arrangement.get_active_window()
     if pane:
         pane.select_next_layout()
@@ -311,7 +317,7 @@ def next_layout(pymux: "Pymux", variables: _VariablesDict) -> None:
 
 @cmd("previous-layout")
 def previous_layout(pymux: "Pymux", variables: _VariablesDict) -> None:
-    " Select previous layout. "
+    "Select previous layout."
     pane = pymux.arrangement.get_active_window()
     if pane:
         pane.select_previous_layout()
@@ -328,13 +334,13 @@ def new_window(pymux: "Pymux", variables: _VariablesDict) -> None:
 
 @cmd("next-window")
 def next_window(pymux: "Pymux", variables: _VariablesDict) -> None:
-    " Focus the next window. "
+    "Focus the next window."
     pymux.arrangement.focus_next_window()
 
 
 @cmd("last-window")
 def _(pymux: "Pymux", variables: _VariablesDict) -> None:
-    " Go to previous active window. "
+    "Go to previous active window."
     w = pymux.arrangement.get_previous_active_window()
 
     if w:
@@ -343,7 +349,7 @@ def _(pymux: "Pymux", variables: _VariablesDict) -> None:
 
 @cmd("previous-window")
 def previous_window(pymux: "Pymux", variables: _VariablesDict) -> None:
-    " Focus the previous window. "
+    "Focus the previous window."
     pymux.arrangement.focus_previous_window()
 
 
@@ -594,13 +600,13 @@ def set_window_option(pymux: "Pymux", variables: _VariablesDict) -> None:
 
 @cmd("display-panes")
 def display_panes(pymux: "Pymux", variables: _VariablesDict) -> None:
-    " Display the pane numbers. "
+    "Display the pane numbers."
     pymux.display_pane_numbers = True
 
 
 @cmd("display-message", options="<message>")
 def display_message(pymux: "Pymux", variables: _VariablesDict) -> None:
-    " Display a message. "
+    "Display a message."
     message = variables["<message>"]
     client_state = pymux.get_client_state()
     client_state.message = message
@@ -608,7 +614,7 @@ def display_message(pymux: "Pymux", variables: _VariablesDict) -> None:
 
 @cmd("clear-history")
 def clear_history(pymux: "Pymux", variables: _VariablesDict) -> None:
-    " Clear scrollback buffer. "
+    "Clear scrollback buffer."
     pane = pymux.arrangement.get_active_pane()
 
     if pane.display_scroll_buffer:

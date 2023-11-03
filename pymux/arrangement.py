@@ -141,11 +141,11 @@ class _Split(list):
 
 
 class HSplit(_Split):
-    """ Horizontal split. """
+    """Horizontal split."""
 
 
 class VSplit(_Split):
-    """ Horizontal split. """
+    """Horizontal split."""
 
 
 class Window:
@@ -303,7 +303,7 @@ class Window:
 
     @property
     def panes(self) -> List[Pane]:
-        " List with all panes from this Window. "
+        "List with all panes from this Window."
         result = []
 
         for s in self.splits:
@@ -315,7 +315,7 @@ class Window:
 
     @property
     def splits(self) -> List[Union[HSplit, VSplit]]:
-        " Return a list with all HSplit/VSplit instances. "
+        "Return a list with all HSplit/VSplit instances."
         result = []
 
         def collect(split):
@@ -329,26 +329,26 @@ class Window:
         return result
 
     def _get_parent(self, item):
-        " The HSplit/VSplit that contains the active pane. "
+        "The HSplit/VSplit that contains the active pane."
         for s in self.splits:
             if item in s:
                 return s
 
     @property
     def has_panes(self) -> bool:
-        " True when this window contains at least one pane. "
+        "True when this window contains at least one pane."
         return len(self.panes) > 0
 
     @property
     def active_process(self):
-        " Return `Process` that should receive user input. "
+        "Return `Process` that should receive user input."
         p = self.active_pane
 
         if p is not None:
             return p.process
 
     def focus_next(self, count=1) -> None:
-        " Focus the next pane. "
+        "Focus the next pane."
         panes = self.panes
         if panes:
             self.active_pane = panes[
@@ -358,7 +358,7 @@ class Window:
             self.active_pane = None  # No panes left.
 
     def focus_previous(self) -> None:
-        " Focus the previous pane. "
+        "Focus the previous pane."
         self.focus_next(count=-1)
 
     def rotate(
@@ -499,7 +499,7 @@ class Window:
         """
 
         def find_split_and_child(split_cls, is_before):
-            " Find the split for which we will have to update the weights. "
+            "Find the split for which we will have to update the weights."
             child = pane
             split = self._get_parent(child)
 
@@ -517,7 +517,7 @@ class Window:
             return split, child  # split can be None!
 
         def handle_side(split_cls, is_before, amount, trying_other_side=False):
-            " Increase weights on one side. (top/left/right/bottom). "
+            "Increase weights on one side. (top/left/right/bottom)."
             if amount:
                 split, child = find_split_and_child(split_cls, is_before)
 
@@ -553,7 +553,7 @@ class Window:
         handle_side(HSplit, False, down)
 
     def get_pane_index(self, pane: Pane):
-        " Return the index of the given pane. ValueError if not found. "
+        "Return the index of the given pane. ValueError if not found."
         return self.panes.index(pane)
 
 
@@ -569,8 +569,12 @@ class Arrangement:
         self.windows: List[Window] = []
         self.base_index = 0
 
-        self._active_window_for_cli: "WeakKeyDictionary[Application, Window]" = WeakKeyDictionary()
-        self._prev_active_window_for_cli: "WeakKeyDictionary[Application, Window]" = WeakKeyDictionary()
+        self._active_window_for_cli: "WeakKeyDictionary[Application, Window]" = (
+            WeakKeyDictionary()
+        )
+        self._prev_active_window_for_cli: "WeakKeyDictionary[Application, Window]" = (
+            WeakKeyDictionary()
+        )
 
         # The active window of the last CLI. Used as default when a new session
         # is attached.
@@ -618,7 +622,7 @@ class Arrangement:
                     self.set_active_window(w)
 
     def get_previous_active_window(self) -> Optional[Window]:
-        " The previous active Window or None if unknown. "
+        "The previous active Window or None if unknown."
         app = get_app()
 
         try:
@@ -627,7 +631,7 @@ class Arrangement:
             return None
 
     def get_window_by_index(self, index):
-        " Return the Window with this index or None if not found. "
+        "Return the Window with this index or None if not found."
         for w in self.windows:
             if w.index == index:
                 return w
@@ -733,13 +737,13 @@ class Arrangement:
                 self.create_window(pane, set_active=set_active)
 
     def rotate_window(self, count: int = 1) -> None:
-        " Rotate the panes in the active window. "
+        "Rotate the panes in the active window."
         w = self.get_active_window()
         w.rotate(count=count)
 
     @property
     def has_panes(self) -> bool:
-        " True when any of the windows has a :class:`.Pane`. "
+        "True when any of the windows has a :class:`.Pane`."
         for w in self.windows:
             if w.has_panes:
                 return True

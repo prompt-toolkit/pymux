@@ -50,7 +50,7 @@ __all__ = ["LayoutManager"]
 
 
 class Justify:
-    " Justify enum for the status bar. "
+    "Justify enum for the status bar."
     LEFT = "left"
     CENTER = "center"
     RIGHT = "right"
@@ -94,7 +94,7 @@ class Background(Container):
         erase_bg: bool,
         z_index: Optional[int],
     ) -> None:
-        " Fill the whole area of write_position with dots. "
+        "Fill the whole area of write_position with dots."
         default_char = Char(" ", "class:background")
         dot = Char(".", "class:background")
 
@@ -186,7 +186,7 @@ PANE_NUMBER_Z_INDEX = 100
 def _draw_number(
     screen, x_offset, y_offset, number, style="class:clock", transparent=False
 ):
-    " Write number at position. "
+    "Write number at position."
     fg = Char(" ", "class:clock")
     bg = Char(" ", "")
 
@@ -259,7 +259,7 @@ class BigClock(Container):
         screen.draw_with_z_index(z_index=CLOCK_Z_INDEX, draw_func=draw_func)
 
     def _mouse_handler(self, mouse_event: MouseEvent) -> None:
-        " Click callback. "
+        "Click callback."
         if mouse_event.event_type == MouseEventType.MOUSE_UP:
             self.on_click()
 
@@ -421,7 +421,7 @@ class LayoutManager:
     def _create_select_window_handler(
         self, window: arrangement.Window
     ) -> Callable[[MouseEvent], "NotImplementedOrNone"]:
-        " Return a mouse handler that selects the given window when clicking. "
+        "Return a mouse handler that selects the given window when clicking."
 
         def handler(mouse_event: MouseEvent) -> "NotImplementedOrNone":
             if mouse_event.event_type == MouseEventType.MOUSE_DOWN:
@@ -434,7 +434,7 @@ class LayoutManager:
         return handler
 
     def _get_status_tokens(self) -> StyleAndTextTuples:
-        " The tokens for the status bar. "
+        "The tokens for the status bar."
         result: StyleAndTextTuples = []
 
         # Display panes.
@@ -666,12 +666,10 @@ class DynamicBody(Container):
         self.pymux = pymux
         self._bodies_for_app: weakref.WeakKeyDictionary[
             Application, Tuple[str, Container]
-        ] = (
-            weakref.WeakKeyDictionary()
-        )  # Maps Application to (hash, Container)
+        ] = weakref.WeakKeyDictionary()  # Maps Application to (hash, Container)
 
     def _get_body(self) -> Container:
-        " Return the Container object for the current CLI. "
+        "Return the Container object for the current CLI."
         new_hash = self.pymux.arrangement.invalidation_hash()
 
         # Return existing layout if nothing has changed to the arrangement.
@@ -688,7 +686,7 @@ class DynamicBody(Container):
         return new_layout
 
     def _build_layout(self) -> Container:
-        " Rebuild a new Container object and return that. "
+        "Rebuild a new Container object and return that."
         logger.info("Rebuilding layout.")
 
         if not self.pymux.arrangement.windows:
@@ -814,8 +812,8 @@ def _create_split(
     is_vsplit = isinstance(split, arrangement.VSplit)
 
     def get_average_weight() -> int:
-        """ Calculate average weight of the children. Return 1 if none of
-        the children has a weight specified yet. """
+        """Calculate average weight of the children. Return 1 if none of
+        the children has a weight specified yet."""
         weights = 0
         count = 0
 
@@ -964,7 +962,7 @@ def _create_container_for_process(
         return "%3s " % index
 
     def on_click() -> None:
-        " Click handler for the clock. When clicked, select this pane. "
+        "Click handler for the clock. When clicked, select this pane."
         arrangement_pane.clock_mode = False
         pymux.arrangement.get_active_window().active_pane = arrangement_pane
         pymux.invalidate()
@@ -1140,7 +1138,7 @@ class HighlightBordersIfActive:
 
 
 class TracePaneWritePosition(_ContainerProxy):  # XXX: replace with SizedBox
-    " Trace the write position of this pane. "
+    "Trace the write position of this pane."
 
     def __init__(
         self, pymux: "Pymux", arrangement_pane: arrangement.Pane, content
@@ -1175,7 +1173,7 @@ class TracePaneWritePosition(_ContainerProxy):  # XXX: replace with SizedBox
 
 
 def focus_left(pymux: "Pymux") -> None:
-    " Move focus to the left. "
+    "Move focus to the left."
     _move_focus(
         pymux,
         lambda wp: wp.xpos - 2,  # 2 in order to skip over the border.
@@ -1184,24 +1182,24 @@ def focus_left(pymux: "Pymux") -> None:
 
 
 def focus_right(pymux: "Pymux") -> None:
-    " Move focus to the right. "
+    "Move focus to the right."
     _move_focus(pymux, lambda wp: wp.xpos + wp.width + 1, lambda wp: wp.ypos)
 
 
 def focus_down(pymux: "Pymux") -> None:
-    " Move focus down. "
+    "Move focus down."
     _move_focus(pymux, lambda wp: wp.xpos, lambda wp: wp.ypos + wp.height + 2)
     # 2 in order to skip over the border. Only required when the
     # pane-status is not shown, but a border instead.
 
 
 def focus_up(pymux: "Pymux") -> None:
-    " Move focus up. "
+    "Move focus up."
     _move_focus(pymux, lambda wp: wp.xpos, lambda wp: wp.ypos - 2)
 
 
 def _move_focus(pymux: "Pymux", get_x, get_y) -> None:
-    " Move focus of the active window. "
+    "Move focus of the active window."
     window = pymux.arrangement.get_active_window()
 
     try:

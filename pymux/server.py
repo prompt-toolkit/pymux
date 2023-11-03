@@ -18,6 +18,7 @@ from prompt_toolkit.input.vt100_parser import Vt100Parser
 from prompt_toolkit.output import ColorDepth
 from prompt_toolkit.output.vt100 import Vt100_Output
 from prompt_toolkit.utils import is_windows
+from prompt_toolkit.input.defaults import create_pipe_input
 
 from .log import logger
 from .pipes import BrokenPipeError
@@ -90,9 +91,6 @@ class ServerConnection:
         elif packet["cmd"] == "in":
             self._pipeinput.send_text(packet["data"])
 
-        #        elif packet['cmd'] == 'flush-input':
-        #            self._inputstream.flush()  # Flush escape key.  # XXX: I think we no longer need this.
-
         # Set size. (The client reports the size.)
         elif packet["cmd"] == "size":
             rows, columns = packet["data"]
@@ -162,7 +160,7 @@ class ServerConnection:
             cast(TextIO, _SocketStdout(self._send_packet)),
             lambda: self.size,
             term=term,
-            write_binary=False,
+            # write_binary=False,
         )
 
         client_state = self.pymux.add_client(
@@ -219,22 +217,19 @@ class _SocketStdout:
         self.send_packet(data)
         self._buffer = []
 
-
-if is_windows():
-    from prompt_toolkit.input.win32_pipe import Win32PipeInput as PipeInput
-else:
-    from prompt_toolkit.input.posix_pipe import PosixPipeInput as PipeInput
+    def isatty(self) -> bool:
+        return True
 
 
-class _ClientInput(PipeInput):
+class _ClientInput:
     """
     Input class that can be given to the CommandLineInterface.
     We only need this for turning the client into raw_mode/cooked_mode.
     """
 
     def __init__(self, send_packet: Callable) -> None:
-        super().__init__()
         self.send_packet = send_packet
+        self._input = create_pipe_input().__enter__()  # TODO: use as context manager.
 
     # Implement raw/cooked mode by sending this to the attached client.
 
@@ -245,7 +240,7 @@ class _ClientInput(PipeInput):
         return self._create_context_manager("cooked")
 
     def _create_context_manager(self, mode: str) -> ContextManager[None]:
-        " Create a context manager that sends 'mode' commands to the client. "
+        "Create a context manager that sends 'mode' commands to the client."
 
         class mode_context_manager:
             def __enter__(*a: object) -> None:
@@ -255,3 +250,6 @@ class _ClientInput(PipeInput):
                 self.send_packet({"cmd": "mode", "data": "restore"})
 
         return mode_context_manager()
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._input, name)

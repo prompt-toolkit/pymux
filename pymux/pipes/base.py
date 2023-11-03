@@ -39,4 +39,4 @@ class PipeConnection(ABC):
 
 
 class BrokenPipeError(Exception):
-    " Raised when trying to write to or read from a broken pipe. "
+    "Raised when trying to write to or read from a broken pipe."

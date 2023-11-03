@@ -29,13 +29,16 @@ class PymuxKeyBindings:
         self.pymux = pymux
 
         def get_search_state():
-            " Return the currently active SearchState. (The one for the focused pane.) "
+            "Return the currently active SearchState. (The one for the focused pane.)"
             return pymux.arrangement.get_active_pane().search_state
 
         self.custom_key_bindings = KeyBindings()
 
         self.key_bindings = merge_key_bindings(
-            [self._load_builtins(), self.custom_key_bindings,]
+            [
+                self._load_builtins(),
+                self.custom_key_bindings,
+            ]
         )
 
         self._prefix: Tuple[str, ...] = ("c-b",)
@@ -69,14 +72,14 @@ class PymuxKeyBindings:
             ),
         )
         def enter_prefix_handler(event: E) -> None:
-            " Enter prefix mode. "
+            "Enter prefix mode."
             pymux.get_client_state().has_prefix = True
 
         self._prefix_binding = enter_prefix_handler
 
     @property
     def prefix(self) -> Tuple[str, ...]:
-        " Get the prefix key. "
+        "Get the prefix key."
         return self._prefix
 
     @prefix.setter
@@ -103,7 +106,7 @@ class PymuxKeyBindings:
 
         @kb.add(Keys.Any, filter=has_prefix)
         def _(event: E) -> None:
-            " Ignore unknown Ctrl-B prefixed key sequences. "
+            "Ignore unknown Ctrl-B prefixed key sequences."
             pymux.get_client_state().has_prefix = False
 
         @kb.add("c-c", filter=prompt_or_command_focus & ~has_prefix)
@@ -111,7 +114,7 @@ class PymuxKeyBindings:
         #        @kb.add('backspace', filter=has_focus(COMMAND) & ~has_prefix &
         #                              Condition(lambda: cli.buffers[COMMAND].text == ''))
         def _leave_command_mode(event: E) -> None:
-            " Leave command mode. "
+            "Leave command mode."
             pymux.leave_command_mode(append_to_history=False)
 
         @kb.add("y", filter=waits_for_confirmation)
@@ -143,26 +146,26 @@ class PymuxKeyBindings:
         @kb.add("enter", filter=in_scroll_buffer_not_searching)
         @kb.add("q", filter=in_scroll_buffer_not_searching)
         def _quit(event: E) -> None:
-            " Exit scroll buffer. "
+            "Exit scroll buffer."
             pane = pymux.arrangement.get_active_pane()
             pane.exit_scroll_buffer()
 
         @kb.add(" ", filter=in_scroll_buffer_not_searching)
         def _enter_selection_mode(event: E) -> None:
-            " Enter selection mode when pressing space in copy mode. "
+            "Enter selection mode when pressing space in copy mode."
             event.current_buffer.start_selection(
                 selection_type=SelectionType.CHARACTERS
             )
 
         @kb.add("enter", filter=in_scroll_buffer_not_searching & has_selection)
         def _copy_selection(event: E) -> None:
-            " Copy selection when pressing Enter. "
+            "Copy selection when pressing Enter."
             clipboard_data = event.current_buffer.copy_selection()
             event.app.clipboard.set_data(clipboard_data)
 
         @kb.add("v", filter=in_scroll_buffer_not_searching & has_selection)
         def _toggle_selection_type(event: E) -> None:
-            " Toggle between selection types. "
+            "Toggle between selection types."
             selection_state = event.current_buffer.selection_state
 
             if selection_state is not None:
@@ -185,12 +188,12 @@ class PymuxKeyBindings:
 
         @kb.add("q", filter=popup_displayed, eager=True)
         def _quit_popup(event: E) -> None:
-            " Quit pop-up dialog. "
+            "Quit pop-up dialog."
             self.pymux.get_client_state().display_popup = False
 
         @kb.add(Keys.Any, eager=True, filter=display_pane_numbers)
         def _hide_numbers(event: E) -> None:
-            " When the pane numbers are shown. Any key press should hide them. "
+            "When the pane numbers are shown. Any key press should hide them."
             pymux.display_pane_numbers = False
 
         @Condition
@@ -201,7 +204,7 @@ class PymuxKeyBindings:
 
         @kb.add(Keys.Any, eager=True, filter=clock_displayed)
         def _hide_clock(event: E) -> None:
-            " When the clock is displayed. Any key press should hide it. "
+            "When the clock is displayed. Any key press should hide it."
             pane = pymux.arrangement.get_active_pane()
             pane.clock_mode = False
 
@@ -235,7 +238,7 @@ class PymuxKeyBindings:
         )
 
         def key_handler(event: E) -> None:
-            " The actual key handler. "
+            "The actual key handler."
             call_command_handler(command, self.pymux, arguments)
             self.pymux.get_client_state().has_prefix = False
 

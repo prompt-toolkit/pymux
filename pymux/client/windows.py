@@ -107,16 +107,19 @@ class WindowsClient(Client):
         keys = self._input.read_keys()
         if keys:
             self._send_packet(
-                {"cmd": "in", "data": "".join(key_press.data for key_press in keys),}
+                {
+                    "cmd": "in",
+                    "data": "".join(key_press.data for key_press in keys),
+                }
             )
 
     def _send_packet(self, data):
-        " Send to server. "
+        "Send to server."
         data = json.dumps(data)
         ensure_future(self.pipe.write_message(data))
 
     def _send_size(self):
-        " Report terminal size to server. "
+        "Report terminal size to server."
         output = Win32Output(sys.stdout)
         rows, cols = output.get_size()
 

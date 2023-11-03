@@ -16,8 +16,6 @@ from pymux.utils import nonblocking
 
 from .base import Client
 
-INPUT_TIMEOUT = 0.5
-
 __all__ = [
     "PosixClient",
     "list_clients",
@@ -76,7 +74,6 @@ class PosixClient(Client):
 
             stdin_fd = sys.stdin.fileno()
             socket_fd = self.socket.fileno()
-            current_timeout = INPUT_TIMEOUT  # Timeout, used to flush escape sequences.
 
             try:
 
@@ -85,7 +82,7 @@ class PosixClient(Client):
 
                 signal.signal(signal.SIGWINCH, winch_handler)
                 while True:
-                    r, _, _ = select([stdin_fd, socket_fd], [], [], current_timeout)
+                    r, _, _ = select([stdin_fd, socket_fd], [], [])
 
                     if socket_fd in r:
                         # Received packet from server.
@@ -112,12 +109,7 @@ class PosixClient(Client):
                     elif stdin_fd in r:
                         # Got user input.
                         self._process_stdin()
-                        current_timeout = INPUT_TIMEOUT
 
-                    else:
-                        # Timeout. (Tell the server to flush the vt100 Escape.)
-                        self._send_packet({"cmd": "flush-input"})
-                        current_timeout = 0
             finally:
                 signal.signal(signal.SIGWINCH, signal.SIG_IGN)
 
@@ -165,11 +157,14 @@ class PosixClient(Client):
         step = 4056
         for i in range(0, len(data), step):
             self._send_packet(
-                {"cmd": "in", "data": data[i : i + step],}
+                {
+                    "cmd": "in",
+                    "data": data[i : i + step],
+                }
             )
 
     def _send_packet(self, data):
-        " Send to server. "
+        "Send to server."
         data = json.dumps(data).encode("utf-8")
 
         # Be sure that our socket is blocking, otherwise, the send() call could
@@ -179,7 +174,7 @@ class PosixClient(Client):
         self.socket.send(data + b"\0")
 
     def _send_size(self):
-        " Report terminal size to server. "
+        "Report terminal size to server."
         rows, cols = _get_size(sys.stdout.fileno())
         self._send_packet({"cmd": "size", "data": [rows, cols]})
 

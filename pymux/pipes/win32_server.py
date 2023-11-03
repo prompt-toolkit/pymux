@@ -113,7 +113,6 @@ class PipeInstance:
         timeout=5000,
         pipe_connection_cb=None,
     ):
-
         self.pipe_handle = windll.kernel32.CreateNamedPipeW(
             pipe_name,  # Pipe name.
             PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED,

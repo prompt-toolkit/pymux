@@ -108,37 +108,130 @@ PYMUX_TO_PROMPT_TOOLKIT_KEYS = {
     "S-Right": (Keys.ShiftRight,),
     "S-Up": (Keys.ShiftUp,),
     "S-Down": (Keys.ShiftDown,),
-    "M-C-a": (Keys.Escape, Keys.ControlA,),
-    "M-C-b": (Keys.Escape, Keys.ControlB,),
-    "M-C-c": (Keys.Escape, Keys.ControlC,),
-    "M-C-d": (Keys.Escape, Keys.ControlD,),
-    "M-C-e": (Keys.Escape, Keys.ControlE,),
-    "M-C-f": (Keys.Escape, Keys.ControlF,),
-    "M-C-g": (Keys.Escape, Keys.ControlG,),
-    "M-C-h": (Keys.Escape, Keys.ControlH,),
-    "M-C-i": (Keys.Escape, Keys.ControlI,),
-    "M-C-j": (Keys.Escape, Keys.ControlJ,),
-    "M-C-k": (Keys.Escape, Keys.ControlK,),
-    "M-C-l": (Keys.Escape, Keys.ControlL,),
-    "M-C-m": (Keys.Escape, Keys.ControlM,),
-    "M-C-n": (Keys.Escape, Keys.ControlN,),
-    "M-C-o": (Keys.Escape, Keys.ControlO,),
-    "M-C-p": (Keys.Escape, Keys.ControlP,),
-    "M-C-q": (Keys.Escape, Keys.ControlQ,),
-    "M-C-r": (Keys.Escape, Keys.ControlR,),
-    "M-C-s": (Keys.Escape, Keys.ControlS,),
-    "M-C-t": (Keys.Escape, Keys.ControlT,),
-    "M-C-u": (Keys.Escape, Keys.ControlU,),
-    "M-C-v": (Keys.Escape, Keys.ControlV,),
-    "M-C-w": (Keys.Escape, Keys.ControlW,),
-    "M-C-x": (Keys.Escape, Keys.ControlX,),
-    "M-C-y": (Keys.Escape, Keys.ControlY,),
-    "M-C-z": (Keys.Escape, Keys.ControlZ,),
-    "M-C-Left": (Keys.Escape, Keys.ControlLeft,),
-    "M-C-Right": (Keys.Escape, Keys.ControlRight,),
-    "M-C-Up": (Keys.Escape, Keys.ControlUp,),
-    "M-C-Down": (Keys.Escape, Keys.ControlDown,),
-    "M-C-\\": (Keys.Escape, Keys.ControlBackslash,),
+    "M-C-a": (
+        Keys.Escape,
+        Keys.ControlA,
+    ),
+    "M-C-b": (
+        Keys.Escape,
+        Keys.ControlB,
+    ),
+    "M-C-c": (
+        Keys.Escape,
+        Keys.ControlC,
+    ),
+    "M-C-d": (
+        Keys.Escape,
+        Keys.ControlD,
+    ),
+    "M-C-e": (
+        Keys.Escape,
+        Keys.ControlE,
+    ),
+    "M-C-f": (
+        Keys.Escape,
+        Keys.ControlF,
+    ),
+    "M-C-g": (
+        Keys.Escape,
+        Keys.ControlG,
+    ),
+    "M-C-h": (
+        Keys.Escape,
+        Keys.ControlH,
+    ),
+    "M-C-i": (
+        Keys.Escape,
+        Keys.ControlI,
+    ),
+    "M-C-j": (
+        Keys.Escape,
+        Keys.ControlJ,
+    ),
+    "M-C-k": (
+        Keys.Escape,
+        Keys.ControlK,
+    ),
+    "M-C-l": (
+        Keys.Escape,
+        Keys.ControlL,
+    ),
+    "M-C-m": (
+        Keys.Escape,
+        Keys.ControlM,
+    ),
+    "M-C-n": (
+        Keys.Escape,
+        Keys.ControlN,
+    ),
+    "M-C-o": (
+        Keys.Escape,
+        Keys.ControlO,
+    ),
+    "M-C-p": (
+        Keys.Escape,
+        Keys.ControlP,
+    ),
+    "M-C-q": (
+        Keys.Escape,
+        Keys.ControlQ,
+    ),
+    "M-C-r": (
+        Keys.Escape,
+        Keys.ControlR,
+    ),
+    "M-C-s": (
+        Keys.Escape,
+        Keys.ControlS,
+    ),
+    "M-C-t": (
+        Keys.Escape,
+        Keys.ControlT,
+    ),
+    "M-C-u": (
+        Keys.Escape,
+        Keys.ControlU,
+    ),
+    "M-C-v": (
+        Keys.Escape,
+        Keys.ControlV,
+    ),
+    "M-C-w": (
+        Keys.Escape,
+        Keys.ControlW,
+    ),
+    "M-C-x": (
+        Keys.Escape,
+        Keys.ControlX,
+    ),
+    "M-C-y": (
+        Keys.Escape,
+        Keys.ControlY,
+    ),
+    "M-C-z": (
+        Keys.Escape,
+        Keys.ControlZ,
+    ),
+    "M-C-Left": (
+        Keys.Escape,
+        Keys.ControlLeft,
+    ),
+    "M-C-Right": (
+        Keys.Escape,
+        Keys.ControlRight,
+    ),
+    "M-C-Up": (
+        Keys.Escape,
+        Keys.ControlUp,
+    ),
+    "M-C-Down": (
+        Keys.Escape,
+        Keys.ControlDown,
+    ),
+    "M-C-\\": (
+        Keys.Escape,
+        Keys.ControlBackslash,
+    ),
     "M-a": (Keys.Escape, "a"),
     "M-b": (Keys.Escape, "b"),
     "M-c": (Keys.Escape, "c"),
@@ -176,9 +269,18 @@ PYMUX_TO_PROMPT_TOOLKIT_KEYS = {
     "M-8": (Keys.Escape, "8"),
     "M-9": (Keys.Escape, "9"),
     "M-Up": (Keys.Escape, Keys.Up),
-    "M-Down": (Keys.Escape, Keys.Down,),
-    "M-Left": (Keys.Escape, Keys.Left,),
-    "M-Right": (Keys.Escape, Keys.Right,),
+    "M-Down": (
+        Keys.Escape,
+        Keys.Down,
+    ),
+    "M-Left": (
+        Keys.Escape,
+        Keys.Left,
+    ),
+    "M-Right": (
+        Keys.Escape,
+        Keys.Right,
+    ),
     "Left": (Keys.Left,),
     "Right": (Keys.Right,),
     "Up": (Keys.Up,),

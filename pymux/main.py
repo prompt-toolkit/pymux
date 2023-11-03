@@ -111,7 +111,7 @@ class ClientState:
         return get_app().layout.has_focus(COMMAND)
 
     def _handle_command(self, buffer):
-        " When text is accepted in the command line. "
+        "When text is accepted in the command line."
         text = buffer.text
 
         # First leave command mode. We want to make sure that the working
@@ -122,7 +122,7 @@ class ClientState:
         self.pymux.handle_command(text)
 
     def _handle_prompt_command(self, buffer):
-        " When a command-prompt command is accepted. "
+        "When a command-prompt command is accepted."
         text = buffer.text
         prompt_command = self.prompt_command
 
@@ -137,9 +137,9 @@ class ClientState:
         pymux = self.pymux
 
         def on_focus_changed():
-            """ When the focus changes to a read/write buffer, make sure to go
+            """When the focus changes to a read/write buffer, make sure to go
             to insert mode. This happens when the ViState was set to NAVIGATION
-            in the copy buffer. """
+            in the copy buffer."""
             vi_state = app.vi_state
 
             if app.current_buffer.read_only():
@@ -324,7 +324,7 @@ class Pymux:
         return [c.app for c in self._client_states.values()]
 
     def get_client_state(self):
-        " Return the active ClientState instance. "
+        "Return the active ClientState instance."
         app = get_app()
         for client_state in self._client_states.values():
             if client_state.app == app:
@@ -333,7 +333,7 @@ class Pymux:
         raise ValueError("Client state for app %r not found" % (app,))
 
     def get_connection(self):
-        " Return the active Connection instance. "
+        "Return the active Connection instance."
         app = get_app()
         for connection, client_state in self._client_states.items():
             if client_state.app == app:
@@ -421,7 +421,7 @@ class Pymux:
         """
 
         def done_callback():
-            " When the process finishes. "
+            "When the process finishes."
             if not self.remain_on_exit:
                 # Remove pane from layout.
                 self.arrangement.remove_pane(pane)
@@ -437,7 +437,7 @@ class Pymux:
             self.invalidate()
 
         def bell():
-            " Sound bell on all clients. "
+            "Sound bell on all clients."
             if self.enable_bell:
                 for c in self.apps:
                     c.output.bell()
@@ -455,7 +455,7 @@ class Pymux:
             path = None
 
         def before_exec():
-            " Called in the process fork (in the child process). "
+            "Called in the process fork (in the child process)."
             # Go to this directory.
             try:
                 os.chdir(path or self.original_cwd)
@@ -492,7 +492,7 @@ class Pymux:
         return pane
 
     def invalidate(self):
-        " Invalidate the UI for all clients. "
+        "Invalidate the UI for all clients."
         logger.info("Invalidating %s applications", len(self.apps))
 
         for app in self.apps:

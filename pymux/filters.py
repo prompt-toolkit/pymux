@@ -18,6 +18,7 @@ class HasPrefix(Filter):
 
     def __init__(self, pymux):
         self.pymux = pymux
+        super().__init__()
 
     def __call__(self):
         return self.pymux.get_client_state().has_prefix
@@ -30,6 +31,7 @@ class WaitsForConfirmation(Filter):
 
     def __init__(self, pymux):
         self.pymux = pymux
+        super().__init__()
 
     def __call__(self):
         return bool(self.pymux.get_client_state().confirm_command)
@@ -42,6 +44,7 @@ class InCommandMode(Filter):
 
     def __init__(self, pymux):
         self.pymux = pymux
+        super().__init__()
 
     def __call__(self):
         client_state = self.pymux.get_client_state()
@@ -55,6 +58,7 @@ class WaitsForPrompt(Filter):
 
     def __init__(self, pymux):
         self.pymux = pymux
+        super().__init__()
 
     def __call__(self):
         client_state = self.pymux.get_client_state()
@@ -62,7 +66,7 @@ class WaitsForPrompt(Filter):
 
 
 def _confirm_or_prompt_or_command(pymux):
-    " True when we are waiting for a command, prompt or confirmation. "
+    "True when we are waiting for a command, prompt or confirmation."
     client_state = pymux.get_client_state()
     if (
         client_state.confirm_text
@@ -75,6 +79,7 @@ def _confirm_or_prompt_or_command(pymux):
 class InScrollBuffer(Filter):
     def __init__(self, pymux):
         self.pymux = pymux
+        super().__init__()
 
     def __call__(self):
         if _confirm_or_prompt_or_command(self.pymux):
@@ -87,6 +92,7 @@ class InScrollBuffer(Filter):
 class InScrollBufferNotSearching(Filter):
     def __init__(self, pymux):
         self.pymux = pymux
+        super().__init__()
 
     def __call__(self):
         if _confirm_or_prompt_or_command(self.pymux):
@@ -99,6 +105,7 @@ class InScrollBufferNotSearching(Filter):
 class InScrollBufferSearching(Filter):
     def __init__(self, pymux):
         self.pymux = pymux
+        super().__init__()
 
     def __call__(self):
         if _confirm_or_prompt_or_command(self.pymux):
