@@ -1,19 +1,18 @@
-from __future__ import unicode_literals
-from abc import ABCMeta, abstractmethod
-from six import with_metaclass
+from abc import ABC, abstractmethod
 
 __all__ = [
-    'PipeConnection',
-    'BrokenPipeError',
+    "PipeConnection",
+    "BrokenPipeError",
 ]
 
 
-class PipeConnection(with_metaclass(ABCMeta, object)):
+class PipeConnection(ABC):
     """
     A single active Win32 pipe connection on the server side.
 
     - Win32PipeConnection
     """
+
     @abstractmethod
     def read(self):
         """
@@ -40,4 +39,4 @@ class PipeConnection(with_metaclass(ABCMeta, object)):
 
 
 class BrokenPipeError(Exception):
-    " Raised when trying to write to or read from a broken pipe. "
+    "Raised when trying to write to or read from a broken pipe."

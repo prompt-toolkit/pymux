@@ -1,17 +1,23 @@
 """
 Pymux string formatting.
 """
-from __future__ import unicode_literals
 import datetime
 import socket
-import six
+from typing import TYPE_CHECKING, Optional
 
-__all__ = (
-    'format_pymux_string',
-)
+if TYPE_CHECKING:
+    from pymux.main import Pymux
+    from pymux.arrangement import Window, Pane
+
+__all__ = ["format_pymux_string"]
 
 
-def format_pymux_string(pymux, string, window=None, pane=None):
+def format_pymux_string(
+    pymux: "Pymux",
+    string: str,
+    window: Optional["Window"] = None,
+    pane: Optional["Pane"] = None,
+) -> str:
     """
     Apply pymux sting formatting. (Similar to tmux.)
     E.g.  #P is replaced by the index of the active pane.
@@ -32,29 +38,29 @@ def format_pymux_string(pymux, string, window=None, pane=None):
         pane = window.active_pane
 
     def id_of_pane():
-        return '%s' % (pane.pane_id, )
+        return "%s" % (pane.pane_id,)
 
     def index_of_pane():
         try:
-            return '%s' % (window.get_pane_index(pane), )
+            return "%s" % (window.get_pane_index(pane),)
         except ValueError:
-            return '/'
+            return "/"
 
     def index_of_window():
-        return '%s' % (window.index, )
+        return "%s" % (window.index,)
 
     def name_of_window():
-        return window.name or '(noname)'
+        return window.name or "(noname)"
 
     def window_flags():
-        z = 'Z' if window.zoom else ''
+        z = "Z" if window.zoom else ""
 
         if window == arrangement.get_active_window():
-            return '*' + z
+            return "*" + z
         elif window == arrangement.get_previous_active_window():
-            return '-' + z
+            return "-" + z
         else:
-            return z + ' '
+            return z + " "
 
     def name_of_session():
         return pymux.session_name
@@ -66,30 +72,26 @@ def format_pymux_string(pymux, string, window=None, pane=None):
         return socket.gethostname()
 
     def literal():
-        return '#'
+        return "#"
 
     format_table = {
-        '#D': id_of_pane,
-        '#F': window_flags,
-        '#I': index_of_window,
-        '#P': index_of_pane,
-        '#S': name_of_session,
-        '#T': title_of_pane,
-        '#W': name_of_window,
-        '#h': hostname,
-        '##': literal,
+        "#D": id_of_pane,
+        "#F": window_flags,
+        "#I": index_of_window,
+        "#P": index_of_pane,
+        "#S": name_of_session,
+        "#T": title_of_pane,
+        "#W": name_of_window,
+        "#h": hostname,
+        "##": literal,
     }
 
     # Date/time formatting.
-    if '%' in string:
+    if "%" in string:
         try:
-            if six.PY2:
-                string = datetime.datetime.now().strftime(
-                    string.encode('utf-8')).decode('utf-8')
-            else:
-                string = datetime.datetime.now().strftime(string)
+            string = datetime.datetime.now().strftime(string)
         except ValueError:  # strftime format ends with raw %
-            string = '<ValueError>'
+            string = "<ValueError>"
 
     # Apply '#' formatting.
     for symbol, f in format_table.items():

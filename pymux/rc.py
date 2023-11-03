@@ -1,11 +1,7 @@
 """
 Initial configuration.
 """
-from __future__ import unicode_literals
-
-__all__ = (
-    'STARTUP_COMMANDS'
-)
+__all__ = "STARTUP_COMMANDS"
 
 STARTUP_COMMANDS = """
 bind-key '"' split-window -v

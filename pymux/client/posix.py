@@ -1,13 +1,3 @@
-from __future__ import unicode_literals
-
-from prompt_toolkit.eventloop.select import select_fds
-from prompt_toolkit.input.posix_utils import PosixStdinReader
-from prompt_toolkit.input.vt100 import raw_mode, cooked_mode
-from prompt_toolkit.output.vt100 import _get_size, Vt100_Output
-from prompt_toolkit.output import ColorDepth
-
-from pymux.utils import nonblocking
-
 import getpass
 import glob
 import json
@@ -16,14 +6,20 @@ import signal
 import socket
 import sys
 import tempfile
+from select import select
+
+from prompt_toolkit.input.posix_utils import PosixStdinReader
+from prompt_toolkit.input.vt100 import cooked_mode, raw_mode
+from prompt_toolkit.output import ColorDepth
+from prompt_toolkit.output.vt100 import Vt100_Output, _get_size
+from pymux.utils import nonblocking
+
 from .base import Client
 
-INPUT_TIMEOUT = .5
-
-__all__ = (
-    'PosixClient',
-    'list_clients',
-)
+__all__ = [
+    "PosixClient",
+    "list_clients",
+]
 
 
 class PosixClient(Client):
@@ -46,7 +42,7 @@ class PosixClient(Client):
         #     decoding otherwise. (Also don't pass errors='ignore', because
         #     that doesn't work for parsing mouse input escape sequences, which
         #     consist of a fixed number of bytes.)
-        self._stdin_reader = PosixStdinReader(sys.stdin.fileno(), errors='replace')
+        self._stdin_reader = PosixStdinReader(sys.stdin.fileno(), errors="replace")
 
     def run_command(self, command, pane_id=None):
         """
@@ -54,47 +50,45 @@ class PosixClient(Client):
 
         :param pane_id: Optional identifier of the current pane.
         """
-        self._send_packet({
-            'cmd': 'run-command',
-            'data': command,
-            'pane_id': pane_id
-        })
+        self._send_packet({"cmd": "run-command", "data": command, "pane_id": pane_id})
 
-    def attach(self, detach_other_clients=False, color_depth=ColorDepth.DEPTH_8_BIT):
+    def attach(
+        self, detach_other_clients: bool = False, color_depth=ColorDepth.DEPTH_8_BIT
+    ):
         """
         Attach client user interface.
         """
-        assert isinstance(detach_other_clients, bool)
-
         self._send_size()
-        self._send_packet({
-            'cmd': 'start-gui',
-            'detach-others': detach_other_clients,
-            'color-depth': color_depth,
-            'term': os.environ.get('TERM', ''),
-            'data': ''
-        })
+        self._send_packet(
+            {
+                "cmd": "start-gui",
+                "detach-others": detach_other_clients,
+                "color-depth": color_depth,
+                "term": os.environ.get("TERM", ""),
+                "data": "",
+            }
+        )
 
         with raw_mode(sys.stdin.fileno()):
-            data_buffer = b''
+            data_buffer = b""
 
             stdin_fd = sys.stdin.fileno()
             socket_fd = self.socket.fileno()
-            current_timeout = INPUT_TIMEOUT  # Timeout, used to flush escape sequences.
 
             try:
+
                 def winch_handler(signum, frame):
                     self._send_size()
 
                 signal.signal(signal.SIGWINCH, winch_handler)
                 while True:
-                    r = select_fds([stdin_fd, socket_fd], current_timeout)
+                    r, _, _ = select([stdin_fd, socket_fd], [], [])
 
                     if socket_fd in r:
                         # Received packet from server.
                         data = self.socket.recv(1024)
 
-                        if data == b'':
+                        if data == b"":
                             # End of file. Connection closed.
                             # Reset terminal
                             o = Vt100_Output.from_pty(sys.stdout)
@@ -107,20 +101,15 @@ class PosixClient(Client):
                         else:
                             data_buffer += data
 
-                            while b'\0' in data_buffer:
-                                pos = data_buffer.index(b'\0')
+                            while b"\0" in data_buffer:
+                                pos = data_buffer.index(b"\0")
                                 self._process(data_buffer[:pos])
-                                data_buffer = data_buffer[pos + 1:]
+                                data_buffer = data_buffer[pos + 1 :]
 
                     elif stdin_fd in r:
                         # Got user input.
                         self._process_stdin()
-                        current_timeout = INPUT_TIMEOUT
 
-                    else:
-                        # Timeout. (Tell the server to flush the vt100 Escape.)
-                        self._send_packet({'cmd': 'flush-input'})
-                        current_timeout = None
             finally:
                 signal.signal(signal.SIGWINCH, signal.SIG_IGN)
 
@@ -128,32 +117,32 @@ class PosixClient(Client):
         """
         Handle incoming packet from server.
         """
-        packet = json.loads(data_buffer.decode('utf-8'))
+        packet = json.loads(data_buffer.decode("utf-8"))
 
-        if packet['cmd'] == 'out':
+        if packet["cmd"] == "out":
             # Call os.write manually. In Python2.6, sys.stdout.write doesn't use UTF-8.
-            os.write(sys.stdout.fileno(), packet['data'].encode('utf-8'))
+            os.write(sys.stdout.fileno(), packet["data"].encode("utf-8"))
 
-        elif packet['cmd'] == 'suspend':
+        elif packet["cmd"] == "suspend":
             # Suspend client process to background.
-            if hasattr(signal, 'SIGTSTP'):
+            if hasattr(signal, "SIGTSTP"):
                 os.kill(os.getpid(), signal.SIGTSTP)
 
-        elif packet['cmd'] == 'mode':
+        elif packet["cmd"] == "mode":
             # Set terminal to raw/cooked.
-            action = packet['data']
+            action = packet["data"]
 
-            if action == 'raw':
+            if action == "raw":
                 cm = raw_mode(sys.stdin.fileno())
                 cm.__enter__()
                 self._mode_context_managers.append(cm)
 
-            elif action == 'cooked':
+            elif action == "cooked":
                 cm = cooked_mode(sys.stdin.fileno())
                 cm.__enter__()
                 self._mode_context_managers.append(cm)
 
-            elif action == 'restore' and self._mode_context_managers:
+            elif action == "restore" and self._mode_context_managers:
                 cm = self._mode_context_managers.pop()
                 cm.__exit__()
 
@@ -167,35 +156,34 @@ class PosixClient(Client):
         # Send input in chunks of 4k.
         step = 4056
         for i in range(0, len(data), step):
-            self._send_packet({
-                'cmd': 'in',
-                'data': data[i:i + step],
-            })
+            self._send_packet(
+                {
+                    "cmd": "in",
+                    "data": data[i : i + step],
+                }
+            )
 
     def _send_packet(self, data):
-        " Send to server. "
-        data = json.dumps(data).encode('utf-8')
+        "Send to server."
+        data = json.dumps(data).encode("utf-8")
 
         # Be sure that our socket is blocking, otherwise, the send() call could
         # raise `BlockingIOError` if the buffer is full.
         self.socket.setblocking(1)
 
-        self.socket.send(data + b'\0')
+        self.socket.send(data + b"\0")
 
     def _send_size(self):
-        " Report terminal size to server. "
+        "Report terminal size to server."
         rows, cols = _get_size(sys.stdout.fileno())
-        self._send_packet({
-            'cmd': 'size',
-            'data': [rows, cols]
-        })
+        self._send_packet({"cmd": "size", "data": [rows, cols]})
 
 
 def list_clients():
     """
     List all the servers that are running.
     """
-    p = '%s/pymux.sock.%s.*' % (tempfile.gettempdir(), getpass.getuser())
+    p = "%s/pymux.sock.%s.*" % (tempfile.gettempdir(), getpass.getuser())
     for path in glob.glob(p):
         try:
             yield PosixClient(path)

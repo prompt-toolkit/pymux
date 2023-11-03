@@ -1,13 +1,11 @@
-from __future__ import unicode_literals
-
-__all__ = (
-    'COMMAND',
-    'PROMPT',
-)
+__all__ = [
+    "COMMAND",
+    "PROMPT",
+]
 
 
 #: Name of the command buffer.
-COMMAND = 'COMMAND'
+COMMAND = "COMMAND"
 
 #: Name of the input for a "command-prompt" command.
-PROMPT = 'PROMPT'
+PROMPT = "PROMPT"
