@@ -1,6 +1,13 @@
 Pymux
 =====
 
+WARNING: This project requires maintenance. The current master branch requires
+an old version of both prompt_toolkit and ptterm. There is a prompt-toolkit-3.0
+branch here that is compatible with the latest prompt_toolkit and the latest
+commit of the master branch of ptterm, but for that branch, only `pymux
+standalone` is working at the moment.
+
+
 *A terminal multiplexer (like tmux) in Python*
 
 ::
