@@ -38,7 +38,7 @@ What does it do?
 
 A terminal multiplexer makes it possible to run multiple applications in the
 same terminal. It does this by emulating a vt100 terminal for each application.
-There are serveral programs doing this. The most famous are `GNU Screen
+There are several programs doing this. The most famous are `GNU Screen
 <https://www.gnu.org/software/screen/>`_ and `tmux <https://tmux.github.io/>`_.
 
 Pymux is written entirely in Python. It doesn't need any C extension. It runs
